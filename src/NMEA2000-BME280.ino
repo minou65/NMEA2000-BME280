@@ -68,7 +68,7 @@ void setup() {
     wifiInit();
 
 
-    if (!bme.begin(BME280_ADDRESS)) {
+    if (!bme.begin(BME280_ADDRESS_ALTERNATE)) {
 #ifdef DEBUG_MSG
         Serial.println("Could not find a valid BME280 sensor, check wiring!");
 #endif // DEBUG_MSG
