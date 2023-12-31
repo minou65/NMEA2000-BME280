@@ -27,9 +27,25 @@ tN2kTempSource gTempSource = N2kts_MainCabinTemperature;
 #define PressureSendOffset 100     // + 100 ms
 
 
+// Define the constants for the Magnus formula
+#define a 17.62
+#define b 243.12
+
+// Define a function to calculate the alpha value
+double alpha(double T, double RH) {
+    return a * T / (b + T) + log(RH);
+}
+
+// Define a function to calculate the dew point
+double dewPoint(double T, double RH) {
+    return b * alpha(T, RH) / (a - alpha(T, RH));
+}
+
+
 double gTemperature = 0;
 double gHumidity = 0;
 double gPressure = 0;
+double gdewPoint = 0;
 
 // Task handle (Core 0 on ESP32)
 TaskHandle_t TaskHandle;
@@ -155,10 +171,19 @@ void SendN2kTemperature(void) {
         SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
 
         Temperature = bme.readTemperature();
-        Serial.printf("Temperature: %3.1f °C \n", Temperature);
+        // Serial.printf("Temperature: %3.1f °C \n", Temperature);
+
+        // Calculate the dew point in Celsius
+        gdewPoint = dewPoint(gTemperature, gHumidity);
 
         // Set N2K message
         SetN2kPGN130312(N2kMsg, 0, 0, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
+
+        // Send message
+        NMEA2000.SendMsg(N2kMsg);
+
+        // Set N2K message
+        SetN2kPGN130312(N2kMsg, 0, 0, N2kts_DewPointTemperature, CToKelvin(gdewPoint), N2kDoubleNA);
 
         // Send message
         NMEA2000.SendMsg(N2kMsg);
@@ -176,7 +201,7 @@ void SendN2kHumidity(void) {
         SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
 
         Humidity = bme.readHumidity();
-        Serial.printf("Humidity: %3.1f %% \n", Humidity);
+        // Serial.printf("Humidity: %3.1f %% \n", Humidity);
 
         // Set N2K message
         SetN2kPGN130313(N2kMsg, 0, 0, N2khs_InsideHumidity, Humidity, N2kDoubleNA);
@@ -197,7 +222,7 @@ void SendN2kPressure(void) {
         SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
 
         Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
-        Serial.printf("Pressure: %3.1f mBar \n", Pressure);
+        // Serial.printf("Pressure: %3.1f mBar \n", Pressure);
 
         // Set N2K message
         SetN2kPGN130314(N2kMsg, 0, 0, N2kps_Atmospheric, mBarToPascal(Pressure));
@@ -215,6 +240,7 @@ void loop() {
     SendN2kPressure();
 
     NMEA2000.ParseMessages();
+
 
     gParamsChanged = false;
 
