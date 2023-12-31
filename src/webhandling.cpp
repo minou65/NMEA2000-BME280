@@ -1,4 +1,4 @@
-#define DEBUG_WIFI(m) SERIAL_DBG.print(m)
+// #define DEBUG_WIFI(m) SERIAL_DBG.print(m)
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
@@ -16,8 +16,6 @@
 #include <string.h>
 
 #include <IotWebConf.h>
-#include <IotWebConfUsing.h> // This loads aliases for easier class names.
-#include <IotWebConfTParameter.h>
 #include "common.h"
 #include "webhandling.h"
 
@@ -56,19 +54,19 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-IotWebConfParameterGroup sysConfGroup = IotWebConfParameterGroup("SysConf", "Source");
+iotwebconf::ParameterGroup TempGroup = iotwebconf::ParameterGroup("TempGroup", "Temperatur");
 
 char TempSourceValue[STRING_LEN];
-IotWebConfSelectParameter TempSource = IotWebConfSelectParameter("Temperature source",
+iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Source",
     "TempSource", 
     TempSourceValue,
     STRING_LEN, 
     (char*)TempSourceValues,
     (char*)TempSourceNames,
     sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN);
-
-
+    STRING_LEN,
+    "3" // Main cabin temperature
+);
 
 void wifiInit() {
     Serial.begin(115200);
@@ -79,9 +77,9 @@ void wifiInit() {
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
 
-    sysConfGroup.addItem(&TempSource);
+    TempGroup.addItem(&TempSource);
 
-    iotWebConf.addParameterGroup(&sysConfGroup);
+    iotWebConf.addParameterGroup(&TempGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -141,6 +139,7 @@ void handleRoot() {
     page.replace("{l}", Title);
     page += HTML_Start_Table;
         page += "<tr><td align=left>Temperatur: </td><td>" + String(gTemperature) + "&deg;C" + "</td></tr>";
+        page += "<tr><td align=left>Dew point: </td><td>" + String(gdewPoint) + "&deg;C" + "</td></tr>";
         page += "<tr><td align=left>Pressure: </td><td>" + String(gPressure) + "mBar" + "</td></tr>";
         page += "<tr><td align=left>Humidity:</td><td>" + String(gHumidity) + "%" + "</td></tr>";
 
