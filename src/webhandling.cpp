@@ -18,6 +18,7 @@
 #include <IotWebConf.h>
 #include "common.h"
 #include "webhandling.h"
+#include <N2kMessagesEnumToStr.h>
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A1"
@@ -54,10 +55,17 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-iotwebconf::ParameterGroup TempGroup = iotwebconf::ParameterGroup("TempGroup", "Temperatur");
+char InstanceValue[NUMBER_LEN];
+char SIDValue[NUMBER_LEN];
+iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
+iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "1", "1..255", "min='1' max='254' step='1'");
+iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..254", "min='1' max='255' step='1'");
+
+
+iotwebconf::ParameterGroup SourcesGroup = iotwebconf::ParameterGroup("SourcesGroup", "Sources");
 
 char TempSourceValue[STRING_LEN];
-iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Source",
+iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperature",
     "TempSource", 
     TempSourceValue,
     STRING_LEN, 
@@ -65,7 +73,19 @@ iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Source",
     (char*)TempSourceNames,
     sizeof(TempSourceValues) / STRING_LEN,
     STRING_LEN,
-    "3" // Main cabin temperature
+    "4" // Main cabin temperature
+);
+
+char HumiditySourceValue[STRING_LEN];
+iotwebconf::SelectParameter HumiditySource = iotwebconf::SelectParameter("Humidity",
+    "HumiditySource",
+    HumiditySourceValue,
+    STRING_LEN,
+    (char*)HumiditySourceValues,
+    (char*)HumiditySourceNames,
+    sizeof(HumiditySourceValues) / STRING_LEN,
+    STRING_LEN,
+    "2" // undefined
 );
 
 void wifiInit() {
@@ -77,9 +97,14 @@ void wifiInit() {
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
 
-    TempGroup.addItem(&TempSource);
+    InstanceGroup.addItem(&InstanceParam);
+    InstanceGroup.addItem(&SIDParam);
 
-    iotWebConf.addParameterGroup(&TempGroup);
+    SourcesGroup.addItem(&TempSource);
+    SourcesGroup.addItem(&HumiditySource);
+
+    iotWebConf.addParameterGroup(&InstanceGroup);
+    iotWebConf.addParameterGroup(&SourcesGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -109,6 +134,8 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
+using namespace std;
+
 void handleRoot() {
     // -- Let IotWebConf test and handle captive portal requests.
     if (iotWebConf.handleCaptivePortal())
@@ -135,11 +162,15 @@ void handleRoot() {
 
     page += HTML_Start_Fieldset;
     page += HTML_Fieldset_Legend;
-    String Title = String(TempSourceNames[gTempSource]);
+    //String Title = String(TempSourceNames[gTempSource]);
+
+    String Title =  N2kEnumTypeToStr(gTempSource);
+
     page.replace("{l}", Title);
     page += HTML_Start_Table;
         page += "<tr><td align=left>Temperatur: </td><td>" + String(gTemperature) + "&deg;C" + "</td></tr>";
         page += "<tr><td align=left>Dew point: </td><td>" + String(gdewPoint) + "&deg;C" + "</td></tr>";
+        page += "<tr><td align=left>Feels like: </td><td>" + String(gheatIndex) + "&deg;C" + "</td></tr>";
         page += "<tr><td align=left>Pressure: </td><td>" + String(gPressure) + "mBar" + "</td></tr>";
         page += "<tr><td align=left>Humidity:</td><td>" + String(gHumidity) + "%" + "</td></tr>";
 
@@ -166,7 +197,10 @@ void handleRoot() {
 
 void convertParams() {
     gTempSource = tN2kTempSource(atoi(TempSourceValue));
+    gHumiditySource = tN2kHumiditySource(atoi(HumiditySourceValue));
 
+    gN2KInstance = atoi(InstanceValue);
+    gN2KSID = atoi(SIDValue);
 }
 
 void configSaved() {
