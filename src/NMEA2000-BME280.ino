@@ -13,32 +13,60 @@
 #include <Adafruit_BME280.h>
 #include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
+#include <cmath>
+
 
 #include "common.h"
 #include "webhandling.h"
 
 uint8_t gN2KSource = 25;
+uint8_t gN2KInstance = 1;
+uint8_t gN2KSID = 1;
 tN2kTempSource gTempSource = N2kts_MainCabinTemperature;
+tN2kHumiditySource gHumiditySource = N2khs_Undef;
 
-// Set time offsets
-#define SlowDataUpdatePeriod 1000  // Time between CAN Messages sent
-#define TempSendOffset 0           // + 0 ms
-#define HumiditySendOffset 50      // + 50 ms
-#define PressureSendOffset 100     // + 100 ms
+tN2kSyncScheduler TemperatureScheduler(false, 2000, 500);
+tN2kSyncScheduler HumidityScheduler(false, 500, 510);
+tN2kSyncScheduler PressureScheduler(false, 500, 520);
+tN2kSyncScheduler DewPointScheduler(false, 500, 530);
+tN2kSyncScheduler HeatIndexScheduler(false, 500, 540);
 
-
-// Define the constants for the Magnus formula
-#define a 17.62
-#define b 243.12
-
-// Define a function to calculate the alpha value
-double alpha(double T, double RH) {
-    return a * T / (b + T) + log(RH);
-}
 
 // Define a function to calculate the dew point
-double dewPoint(double T, double RH) {
-    return b * alpha(T, RH) / (a - alpha(T, RH));
+double dewPoint(double temp_celsius, double humidity) {
+    const double a = 17.27;
+    const double b = 237.7;
+    double alpha = ((a * temp_celsius) / (b + temp_celsius)) + log(humidity / 100.0);
+    return (b * alpha) / (a - alpha);
+
+}
+
+
+// This function takes the temperature in Celsius and the relative humidity in percentage
+// and returns the heat index temperature in Celsius
+double heatIndexCelsius(double temp_celsius, double humidity) {
+    // These are the constants used in the formula
+    const double c1 = -42.379;
+    const double c2 = 2.04901523;
+    const double c3 = 10.14333127;
+    const double c4 = -0.22475541;
+    const double c5 = -0.00683783;
+    const double c6 = -0.05481717;
+    const double c7 = 0.00122874;
+    const double c8 = 0.00085282;
+    const double c9 = -0.00000199;
+
+    // Convert the temperature from Celsius to Fahrenheit
+    double temp_fahrenheit = temp_celsius * 9.0 / 5.0 + 32;
+
+    // Calculate the heat index in Fahrenheit
+    double heat_fahrenheit = c1 + c2 * temp_fahrenheit + c3 * humidity + c4 * temp_fahrenheit * humidity + c5 * temp_fahrenheit * temp_fahrenheit + c6 * humidity * humidity + c7 * temp_fahrenheit * temp_fahrenheit * humidity + c8 * temp_fahrenheit * humidity * humidity + c9 * temp_fahrenheit * temp_fahrenheit * humidity * humidity;
+
+    // Convert the heat index from Fahrenheit to Celsius
+    double heat_celsius = (heat_fahrenheit - 32) * 5.0 / 9.0;
+
+    // Return the result
+    return heat_celsius;
 }
 
 
@@ -46,13 +74,14 @@ double gTemperature = 0;
 double gHumidity = 0;
 double gPressure = 0;
 double gdewPoint = 0;
+double gheatIndex = 0;
 
 // Task handle (Core 0 on ESP32)
 TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
 
-char Version[] = "0.0.0.1 (2023-08-26)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.0 (02.01.2024)"; // Manufacturer's Software version code
 
 // List here messages your device will transmit.
 const unsigned long TransmitMessages[] PROGMEM = {
@@ -61,6 +90,15 @@ const unsigned long TransmitMessages[] PROGMEM = {
     130314L, // Pressure
     0
 };
+
+void OnN2kOpen() {
+    // Start schedulers now.
+    TemperatureScheduler.UpdateNextTime();
+    HumidityScheduler.UpdateNextTime();
+    PressureScheduler.UpdateNextTime();
+    DewPointScheduler.UpdateNextTime();
+    HeatIndexScheduler.UpdateNextTime();
+}
 
 void setup() {
     uint8_t chipid[6];
@@ -146,91 +184,65 @@ void setup() {
     // Here we tell library, which PGNs we transmit
     NMEA2000.ExtendTransmitMessages(TransmitMessages);
 
-
+    NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.Open();
 }
 
-bool IsTimeToUpdate(unsigned long NextUpdate) {
-    return (NextUpdate < millis());
-}
-
-unsigned long InitNextUpdate(unsigned long Period, unsigned long Offset = 0) {
-    return millis() + Period + Offset;
-}
-
-void SetNextUpdate(unsigned long& NextUpdate, unsigned long Period) {
-    while (NextUpdate < millis()) NextUpdate += Period;
-}
-
 void SendN2kTemperature(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset);
     tN2kMsg N2kMsg;
     double Temperature;
 
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
-
+    if (TemperatureScheduler.IsTime()) {
         Temperature = bme.readTemperature();
-        // Serial.printf("Temperature: %3.1f °C \n", Temperature);
-
-        // Calculate the dew point in Celsius
-        gdewPoint = dewPoint(gTemperature, gHumidity);
-
-        // Set N2K message
-        SetN2kPGN130312(N2kMsg, 0, 0, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
-
-        // Send message
+        SetN2kPGN130312(N2kMsg, 0, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
-
-        // Set N2K message
-        SetN2kPGN130312(N2kMsg, 0, 0, N2kts_DewPointTemperature, CToKelvin(gdewPoint), N2kDoubleNA);
-
-        // Send message
-        NMEA2000.SendMsg(N2kMsg);
-
         gTemperature = Temperature;
     }
 }
 
 void SendN2kHumidity(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, HumiditySendOffset);
     tN2kMsg N2kMsg;
     double Humidity;
 
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
-
+    if (HumidityScheduler.IsTime()) {
         Humidity = bme.readHumidity();
-        // Serial.printf("Humidity: %3.1f %% \n", Humidity);
-
-        // Set N2K message
-        SetN2kPGN130313(N2kMsg, 0, 0, N2khs_InsideHumidity, Humidity, N2kDoubleNA);
-
-        // Send message
+        SetN2kPGN130313(N2kMsg, gN2KSID, gN2KInstance, gHumiditySource, Humidity, N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
-
         gHumidity = Humidity;
     }
 }
 
 void SendN2kPressure(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, PressureSendOffset);
     tN2kMsg N2kMsg;
     double Pressure;
 
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
-
+    if (PressureScheduler.IsTime()) {
         Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
-        // Serial.printf("Pressure: %3.1f mBar \n", Pressure);
-
-        // Set N2K message
-        SetN2kPGN130314(N2kMsg, 0, 0, N2kps_Atmospheric, mBarToPascal(Pressure));
-
-        // Send message
+        SetN2kPGN130314(N2kMsg, gN2KSID, gN2KInstance, N2kps_Atmospheric, mBarToPascal(Pressure));
         NMEA2000.SendMsg(N2kMsg);
-
         gPressure = Pressure;
+    }
+}
+
+void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_) {
+    tN2kMsg N2kMsg;
+
+    if (HeatIndexScheduler.IsTime()) {
+        double _heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
+        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+        gheatIndex = _heatIndex;
+    }
+}
+
+void SendN2KDewPointTemperature(double Temperatur_, double Humidity_) {
+    tN2kMsg N2kMsg;
+
+    if (DewPointScheduler.IsTime()) {
+        double _dewPoint = dewPoint(Temperatur_, Humidity_);
+        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+        gdewPoint = _dewPoint;
     }
 }
 
@@ -239,8 +251,10 @@ void loop() {
     SendN2kHumidity();
     SendN2kPressure();
 
-    NMEA2000.ParseMessages();
+    SendN2KHeatIndexTemperature(gTemperature, gHumidity);
+    SendN2KDewPointTemperature(gTemperature, gHumidity);
 
+    NMEA2000.ParseMessages();
 
     gParamsChanged = false;
 
