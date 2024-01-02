@@ -17,6 +17,7 @@
 extern uint8_t gN2KInstance;
 extern uint8_t gN2KSID;
 extern uint8_t gN2KSource;
+
 extern tN2kTempSource gTempSource;
 extern tN2kHumiditySource gHumiditySource;
 
@@ -29,5 +30,6 @@ extern double gheatIndex;
 extern char Version[];
 
 extern bool gParamsChanged;
+extern bool gSaveParams;
 
 #endif

@@ -19,7 +19,7 @@
 #include "common.h"
 #include "webhandling.h"
 
-uint8_t gN2KSource = 25;
+uint8_t gN2KSource = 22;
 uint8_t gN2KInstance = 1;
 uint8_t gN2KSID = 1;
 tN2kTempSource gTempSource = N2kts_MainCabinTemperature;
@@ -98,6 +98,18 @@ void OnN2kOpen() {
     PressureScheduler.UpdateNextTime();
     DewPointScheduler.UpdateNextTime();
     HeatIndexScheduler.UpdateNextTime();
+}
+
+void CheckN2kSourceAddressChange() {
+    uint8_t SourceAddress = NMEA2000.GetN2kSource();
+
+    if (SourceAddress != gN2KSource) {
+#ifdef DEBUG_MSG
+        Serial.printf("Address Change: New Address=%d\n", SourceAddress);
+#endif // DEBUG_MSG
+        gN2KSource = SourceAddress;
+        gSaveParams = true;
+    }
 }
 
 void setup() {
@@ -255,6 +267,7 @@ void loop() {
     SendN2KDewPointTemperature(gTemperature, gHumidity);
 
     NMEA2000.ParseMessages();
+    CheckN2kSourceAddressChange();
 
     gParamsChanged = false;
 
