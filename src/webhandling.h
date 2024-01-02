@@ -15,48 +15,44 @@
 #include <ESP8266WiFi.h>      
 #endif
 
-#include <IotWebConf.h>
+#include <IotWebConf.h>    
 
-#define STRING_LEN 128
+#define STRING_LEN 64
+#define NUMBER_LEN 5
 
 static char TempSourceValues[][STRING_LEN] = {
-//    "0",
     "1",
     "2",
     "3",
     "4",
-//    "5",
-//    "6",
     "7",
     "8",
-//    "9",
-//    "10",
-//    "11",
-//    "12",
     "13",
     "14",
-//    "15"
 };
 
-static char TempSourceNames[][STRING_LEN] = {
- //   "Sea water temperature",
-    "Outside temperature",
-    "Inside temperature",
-    "Engine room temperature",
-    "Main cabin temperature",
- //   "Live well temperature",
- //   "Bait well temperature",
-    "Refrigeration temperature",
-    "Heating system temperature",
-//    "Dew point temperature",
-//    "Apparent wind chill temperature",
-//    "Theoretical wind chill temperature",
-//    "Heat index temperature",
-    "Freezer temperature",
-    "Exhaust gas temperature",
-//    "Shaft seal temparature"
+static char TempSourceNames[][STRING_LEN] = { 
+    "outside", 
+    "inside", 
+    "engine room", 
+    "main cabin", 
+    "refridgeration",
+    "heating system", 
+    "freezer", 
+    "exhaust gas"
 };
 
+static char HumiditySourceValues[][STRING_LEN] = {
+    "1",
+    "2",
+    "255"
+};
+
+static char HumiditySourceNames[][STRING_LEN] = {
+    "inside",
+    "outside",
+    "unknown"
+};
 
 #define HTML_Start_Doc "<!DOCTYPE html>\
     <html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/>\
