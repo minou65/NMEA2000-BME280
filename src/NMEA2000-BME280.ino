@@ -88,6 +88,7 @@ const unsigned long TransmitMessages[] PROGMEM = {
     130312L, // Temperature
     130313L, // Humidity
     130314L, // Pressure
+    130316L,
     0
 };
 
@@ -206,8 +207,12 @@ void SendN2kTemperature(void) {
 
     if (TemperatureScheduler.IsTime()) {
         Temperature = bme.readTemperature();
-        SetN2kPGN130312(N2kMsg, 0, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
+        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
+
+        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+
         gTemperature = Temperature;
     }
 }
@@ -243,6 +248,10 @@ void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_) {
         double _heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
+
+        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+
         gheatIndex = _heatIndex;
     }
 }
@@ -254,6 +263,10 @@ void SendN2KDewPointTemperature(double Temperatur_, double Humidity_) {
         double _dewPoint = dewPoint(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
+
+        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+
         gdewPoint = _dewPoint;
     }
 }
