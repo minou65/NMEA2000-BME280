@@ -31,7 +31,6 @@ tN2kSyncScheduler PressureScheduler(false, 500, 520);
 tN2kSyncScheduler DewPointScheduler(false, 500, 530);
 tN2kSyncScheduler HeatIndexScheduler(false, 500, 540);
 
-
 // Define a function to calculate the dew point
 double dewPoint(double temp_celsius, double humidity) {
     const double a = 17.27;
@@ -168,7 +167,7 @@ void setup() {
     // Set device information
     NMEA2000.SetDeviceInformation(
         id, // Unique number. Use e.g. Serial number.
-        132, // Device function=Analog to NMEA 2000 Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+        130, // Device function=Analog to NMEA 2000 Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
         75, // Device class=Sensor Communication Interface. See codes on https://web.archive.org/web/20190531120557/https://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
         2046 // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
     );
