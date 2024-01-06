@@ -183,7 +183,7 @@ void setup() {
         "BME280-TemperaturMonitor",  // Manufacturer's Model ID
         Version,  // Manufacturer's Software version code
         Version, // Manufacturer's Model version
-        0xff, // load equivalency - use default
+        1, // load equivalency
         0xffff, // NMEA 2000 version - use default
         0xff, // Sertification level - use default
         DeviceTemperature
@@ -195,7 +195,7 @@ void setup() {
         "BME280-Pressure",  // Manufacturer's Model ID
         Version,  // Manufacturer's Software version code
         Version, // Manufacturer's Model version
-        0xff, // load equivalency - use default
+        1, // load equivalency
         0xffff, // NMEA 2000 version - use default
         0xff, // Sertification level - use default
         DevicePressure
@@ -207,7 +207,7 @@ void setup() {
         "BME280-HumidityMonitor",  // Manufacturer's Model ID
         Version,  // Manufacturer's Software version code
         Version, // Manufacturer's Model version
-        0xff, // load equivalency - use default
+        1, // load equivalency
         0xffff, // NMEA 2000 version - use default
         0xff, // Sertification level - use default
         DeviceHumidity
