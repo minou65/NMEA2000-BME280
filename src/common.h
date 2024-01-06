@@ -14,9 +14,13 @@
 #include "N2kMsg.h"
 #include "N2kTypes.h"
 
+#define DeviceTemperature 0
+#define DevicePressure 1
+#define DeviceHumidity 2
+
 extern uint8_t gN2KInstance;
 extern uint8_t gN2KSID;
-extern uint8_t gN2KSource;
+extern uint8_t gN2KSource[];
 
 extern tN2kTempSource gTempSource;
 extern tN2kHumiditySource gHumiditySource;

@@ -19,7 +19,7 @@
 #include "common.h"
 #include "webhandling.h"
 
-uint8_t gN2KSource = 22;
+uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
 uint8_t gN2KSID = 1;
 tN2kTempSource gTempSource = N2kts_MainCabinTemperature;
@@ -31,6 +31,8 @@ tN2kSyncScheduler PressureScheduler(false, 500, 520);
 tN2kSyncScheduler DewPointScheduler(false, 500, 530);
 tN2kSyncScheduler HeatIndexScheduler(false, 500, 540);
 
+
+
 // Define a function to calculate the dew point
 double dewPoint(double temp_celsius, double humidity) {
     const double a = 17.27;
@@ -39,7 +41,6 @@ double dewPoint(double temp_celsius, double humidity) {
     return (b * alpha) / (a - alpha);
 
 }
-
 
 // This function takes the temperature in Celsius and the relative humidity in percentage
 // and returns the heat index temperature in Celsius
@@ -80,14 +81,22 @@ TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
 
-char Version[] = "1.0.0.0 (02.01.2024)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.1 (06.01.2024)"; // Manufacturer's Software version code
 
 // List here messages your device will transmit.
-const unsigned long TransmitMessages[] PROGMEM = {
+const unsigned long TemperaturTransmitMessages[] PROGMEM = {
     130312L, // Temperature
-    130313L, // Humidity
-    130314L, // Pressure
     130316L,
+    0
+};
+
+const unsigned long HumidityTransmitMessages[] PROGMEM = {
+    130313L, // Humidity
+    0
+};
+
+const unsigned long PressureTransmitMessages[] PROGMEM = {
+    130314L, // Pressure
     0
 };
 
@@ -103,11 +112,18 @@ void OnN2kOpen() {
 void CheckN2kSourceAddressChange() {
     uint8_t SourceAddress = NMEA2000.GetN2kSource();
 
-    if (SourceAddress != gN2KSource) {
-#ifdef DEBUG_MSG
-        Serial.printf("Address Change: New Address=%d\n", SourceAddress);
-#endif // DEBUG_MSG
-        gN2KSource = SourceAddress;
+    if (NMEA2000.GetN2kSource(DeviceTemperature) != gN2KSource[DeviceTemperature]) {
+        gN2KSource[DeviceTemperature] = NMEA2000.GetN2kSource(DeviceTemperature);
+        gSaveParams = true;
+    }
+
+    if (NMEA2000.GetN2kSource(DevicePressure) != gN2KSource[DevicePressure]) {
+        gN2KSource[DevicePressure] = NMEA2000.GetN2kSource(DevicePressure);
+        gSaveParams = true;
+    }
+
+    if (NMEA2000.GetN2kSource(DeviceHumidity) != gN2KSource[DeviceHumidity]) {
+        gN2KSource[DeviceHumidity] = NMEA2000.GetN2kSource(DeviceHumidity);
         gSaveParams = true;
     }
 }
@@ -150,6 +166,11 @@ void setup() {
         0 /* Core where the task should run */
     );
 
+    // Enable multi device support for 3 devices
+    NMEA2000.SetDeviceCount(3); 
+
+    NMEA2000.SetOnOpen(OnN2kOpen);
+
     // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
     NMEA2000.SetN2kCANMsgBufSize(8);
     NMEA2000.SetN2kCANReceiveFrameBufSize(150);
@@ -157,46 +178,85 @@ void setup() {
 
     // Set Product information
     NMEA2000.SetProductInformation(
-        "1", // Manufacturer's Model serial code
-        100, // Manufacturer's product code
-        "BME280",  // Manufacturer's Model ID
+        "101", // Manufacturer's Model serial code
+        101, // Manufacturer's product code
+        "BME280-TemperaturMonitor",  // Manufacturer's Model ID
         Version,  // Manufacturer's Software version code
-        Version // Manufacturer's Model version
+        Version, // Manufacturer's Model version
+        0xff, // load equivalency - use default
+        0xffff, // NMEA 2000 version - use default
+        0xff, // Sertification level - use default
+        DeviceTemperature
+    );
+
+    NMEA2000.SetProductInformation(
+        "102", // Manufacturer's Model serial code
+        102, // Manufacturer's product code
+        "BME280-Pressure",  // Manufacturer's Model ID
+        Version,  // Manufacturer's Software version code
+        Version, // Manufacturer's Model version
+        0xff, // load equivalency - use default
+        0xffff, // NMEA 2000 version - use default
+        0xff, // Sertification level - use default
+        DevicePressure
+    );
+
+    NMEA2000.SetProductInformation(
+        "103", // Manufacturer's Model serial code
+        103, // Manufacturer's product code
+        "BME280-HumidityMonitor",  // Manufacturer's Model ID
+        Version,  // Manufacturer's Software version code
+        Version, // Manufacturer's Model version
+        0xff, // load equivalency - use default
+        0xffff, // NMEA 2000 version - use default
+        0xff, // Sertification level - use default
+        DeviceHumidity
     );
 
     // Set device information
     NMEA2000.SetDeviceInformation(
         id, // Unique number. Use e.g. Serial number.
-        130, // Device function=Analog to NMEA 2000 Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-        75, // Device class=Sensor Communication Interface. See codes on https://web.archive.org/web/20190531120557/https://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-        2046 // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
+        130, // Device function=Devices that measure/report temperature
+        75, // Device class=Sensor Communication Interface.
+        2046, // Just choosen free from code list on 
+        4,  // Marine
+        DeviceTemperature
     );
 
-#ifdef DEBUG_NMEA_MSG
-    Serial.begin(115200);
-    NMEA2000.SetForwardStream(&Serial);
+    NMEA2000.SetDeviceInformation(
+        id, // Unique number. Use e.g. Serial number.
+        140, // Device function=Devices that measure/report pressure.
+        75, // Device class=Sensor Communication Interface.
+        2046, // Just choosen free from code list on 
+        4,  // Marine
+        DevicePressure
+    );
 
-#ifdef DEBUG_NMEA_MSG_ASCII
-    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text)
-#endif // DEBUG_NMEA_MSG_ASCII
+    NMEA2000.SetDeviceInformation(
+        id, // Unique number. Use e.g. Serial number.
+        170, // Device function=Devices that measure/report humidity.
+        75, // Device class=Sensor Communication Interface.
+        2046, // Just choosen free from code list on 
+        4,  // Marine
+        DeviceHumidity
+    );
 
-#ifdef  DEBUG_NMEA_Actisense
-        NMEA2000.SetDebugMode(tNMEA2000::dm_Actisense);
-#endif //  DEBUG_NMEA_Actisense
-
-#else
-    NMEA2000.EnableForward(false); // Disable all msg forwarding to USB (=Serial)
-
-#endif // DEBUG_NMEA_MSG
-
+    // Disable all msg forwarding to USB (=Serial)
+    NMEA2000.EnableForward(false); 
 
     // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
-    NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly, gN2KSource);
+    NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
+
+    NMEA2000.SetN2kSource(gN2KSource[DeviceTemperature], DeviceTemperature);
+    NMEA2000.SetN2kSource(gN2KSource[DevicePressure], DevicePressure);
+    NMEA2000.SetN2kSource(gN2KSource[DeviceHumidity], DeviceHumidity);
+
 
     // Here we tell library, which PGNs we transmit
-    NMEA2000.ExtendTransmitMessages(TransmitMessages);
-
-    NMEA2000.SetOnOpen(OnN2kOpen);
+    NMEA2000.ExtendTransmitMessages(TemperaturTransmitMessages);
+    NMEA2000.ExtendTransmitMessages(PressureTransmitMessages);
+    NMEA2000.ExtendTransmitMessages(HumidityTransmitMessages);
+        
     NMEA2000.Open();
 }
 
@@ -210,7 +270,7 @@ void SendN2kTemperature(void) {
         NMEA2000.SendMsg(N2kMsg);
 
         SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         gTemperature = Temperature;
     }
@@ -223,7 +283,7 @@ void SendN2kHumidity(void) {
     if (HumidityScheduler.IsTime()) {
         Humidity = bme.readHumidity();
         SetN2kPGN130313(N2kMsg, gN2KSID, gN2KInstance, gHumiditySource, Humidity, N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DeviceHumidity);
         gHumidity = Humidity;
     }
 }
@@ -235,7 +295,7 @@ void SendN2kPressure(void) {
     if (PressureScheduler.IsTime()) {
         Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
         SetN2kPGN130314(N2kMsg, gN2KSID, gN2KInstance, N2kps_Atmospheric, mBarToPascal(Pressure));
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DevicePressure);
         gPressure = Pressure;
     }
 }
@@ -249,7 +309,7 @@ void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_) {
         NMEA2000.SendMsg(N2kMsg);
 
         SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         gheatIndex = _heatIndex;
     }
@@ -261,7 +321,7 @@ void SendN2KDewPointTemperature(double Temperatur_, double Humidity_) {
     if (DewPointScheduler.IsTime()) {
         double _dewPoint = dewPoint(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
