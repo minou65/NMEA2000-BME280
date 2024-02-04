@@ -130,12 +130,19 @@ void CheckN2kSourceAddressChange() {
 
 void setup() {
     uint8_t chipid[6];
-    uint32_t id = 0;
+    uint64_t DeviceId1 = 0;
+    uint64_t DeviceId2 = 0;
+    uint64_t DeviceId3 = 0;
     int i = 0;
 
-    // Generate unique number from chip id
+    // Generate unique numbers from chip id
     esp_efuse_mac_get_default(chipid);
-    for (i = 0; i < 6; i++) id += (chipid[i] << (7 * i));
+
+    for (int i = 0; i < 6; i++) {
+        DeviceId1 += (chipid[i] << (7 * i));
+        DeviceId2 += (chipid[i] << (8 * i)); // 8*i statt 7*i
+        DeviceId3 += (chipid[i] << (9 * i)); // 9*i statt 7*i oder 8*i
+    }
 
 #ifdef DEBUG_MSG
     Serial.begin(115200);
@@ -215,7 +222,7 @@ void setup() {
 
     // Set device information
     NMEA2000.SetDeviceInformation(
-        id, // Unique number. Use e.g. Serial number.
+        DeviceId1, // Unique number. Use e.g. Serial number.
         130, // Device function=Devices that measure/report temperature
         75, // Device class=Sensor Communication Interface.
         2046, // Just choosen free from code list on 
@@ -224,7 +231,7 @@ void setup() {
     );
 
     NMEA2000.SetDeviceInformation(
-        id, // Unique number. Use e.g. Serial number.
+        DeviceId2, // Unique number. Use e.g. Serial number.
         140, // Device function=Devices that measure/report pressure.
         75, // Device class=Sensor Communication Interface.
         2046, // Just choosen free from code list on 
@@ -233,7 +240,7 @@ void setup() {
     );
 
     NMEA2000.SetDeviceInformation(
-        id, // Unique number. Use e.g. Serial number.
+        DeviceId3, // Unique number. Use e.g. Serial number.
         170, // Device function=Devices that measure/report humidity.
         75, // Device class=Sensor Communication Interface.
         2046, // Just choosen free from code list on 
@@ -267,7 +274,7 @@ void SendN2kTemperature(void) {
     if (TemperatureScheduler.IsTime()) {
         Temperature = bme.readTemperature();
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
