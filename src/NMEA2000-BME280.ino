@@ -272,6 +272,8 @@ void SendN2kTemperature(void) {
     double Temperature;
 
     if (TemperatureScheduler.IsTime()) {
+        TemperatureScheduler.UpdateNextTime();
+
         Temperature = bme.readTemperature();
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
@@ -288,6 +290,8 @@ void SendN2kHumidity(void) {
     double Humidity;
 
     if (HumidityScheduler.IsTime()) {
+        HumidityScheduler.UpdateNextTime();
+
         Humidity = bme.readHumidity();
         SetN2kPGN130313(N2kMsg, gN2KSID, gN2KInstance, gHumiditySource, Humidity, N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceHumidity);
@@ -300,6 +304,8 @@ void SendN2kPressure(void) {
     double Pressure;
 
     if (PressureScheduler.IsTime()) {
+        PressureScheduler.UpdateNextTime();
+
         Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
         SetN2kPGN130314(N2kMsg, gN2KSID, gN2KInstance, N2kps_Atmospheric, mBarToPascal(Pressure));
         NMEA2000.SendMsg(N2kMsg, DevicePressure);
@@ -311,6 +317,8 @@ void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_) {
     tN2kMsg N2kMsg;
 
     if (HeatIndexScheduler.IsTime()) {
+        HeatIndexScheduler.UpdateNextTime();
+
         double _heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
@@ -326,6 +334,8 @@ void SendN2KDewPointTemperature(double Temperatur_, double Humidity_) {
     tN2kMsg N2kMsg;
 
     if (DewPointScheduler.IsTime()) {
+        DewPointScheduler.UpdateNextTime();
+
         double _dewPoint = dewPoint(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
