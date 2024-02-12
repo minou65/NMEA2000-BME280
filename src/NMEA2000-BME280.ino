@@ -81,7 +81,7 @@ TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
 
-char Version[] = "1.0.0.1 (06.01.2024)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.2 (12.02.2024)"; // Manufacturer's Software version code
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
@@ -267,7 +267,7 @@ void setup() {
     NMEA2000.Open();
 }
 
-void SendN2kTemperature(void) {
+void SendN2kTemperature(uint8_t instance_) {
     tN2kMsg N2kMsg;
     double Temperature;
 
@@ -275,17 +275,17 @@ void SendN2kTemperature(void) {
         TemperatureScheduler.UpdateNextTime();
 
         Temperature = bme.readTemperature();
-        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
+        SetN2kPGN130312(N2kMsg, gN2KSID, instance_, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
-        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
+        SetN2kPGN130316(N2kMsg, gN2KSID, instance_, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         gTemperature = Temperature;
     }
 }
 
-void SendN2kHumidity(void) {
+void SendN2kHumidity(uint8_t instance_) {
     tN2kMsg N2kMsg;
     double Humidity;
 
@@ -293,13 +293,13 @@ void SendN2kHumidity(void) {
         HumidityScheduler.UpdateNextTime();
 
         Humidity = bme.readHumidity();
-        SetN2kPGN130313(N2kMsg, gN2KSID, gN2KInstance, gHumiditySource, Humidity, N2kDoubleNA);
+        SetN2kPGN130313(N2kMsg, gN2KSID, instance_, gHumiditySource, Humidity, N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceHumidity);
         gHumidity = Humidity;
     }
 }
 
-void SendN2kPressure(void) {
+void SendN2kPressure(uint8_t instance_) {
     tN2kMsg N2kMsg;
     double Pressure;
 
@@ -307,53 +307,53 @@ void SendN2kPressure(void) {
         PressureScheduler.UpdateNextTime();
 
         Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
-        SetN2kPGN130314(N2kMsg, gN2KSID, gN2KInstance, N2kps_Atmospheric, mBarToPascal(Pressure));
+        SetN2kPGN130314(N2kMsg, gN2KSID, instance_, N2kps_Atmospheric, mBarToPascal(Pressure));
         NMEA2000.SendMsg(N2kMsg, DevicePressure);
         gPressure = Pressure;
     }
 }
 
-void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_) {
+void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_, uint8_t instance_) {
     tN2kMsg N2kMsg;
 
     if (HeatIndexScheduler.IsTime()) {
         HeatIndexScheduler.UpdateNextTime();
 
         double _heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
-        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        SetN2kPGN130312(N2kMsg, gN2KSID, instance_, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
-        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
+        SetN2kPGN130316(N2kMsg, gN2KSID, instance_, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         gheatIndex = _heatIndex;
     }
 }
 
-void SendN2KDewPointTemperature(double Temperatur_, double Humidity_) {
+void SendN2KDewPointTemperature(double Temperatur_, double Humidity_, uint8_t instance_) {
     tN2kMsg N2kMsg;
 
     if (DewPointScheduler.IsTime()) {
         DewPointScheduler.UpdateNextTime();
 
         double _dewPoint = dewPoint(Temperatur_, Humidity_);
-        SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
+        SetN2kPGN130312(N2kMsg, gN2KSID, instance_, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
-        SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
-        NMEA2000.SendMsg(N2kMsg);
+        SetN2kPGN130316(N2kMsg, gN2KSID, instance_, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
         gdewPoint = _dewPoint;
     }
 }
 
 void loop() {
-    SendN2kTemperature();
-    SendN2kHumidity();
-    SendN2kPressure();
+    SendN2kTemperature(gN2KInstance);
+    SendN2kHumidity(gN2KInstance + 1);
+    SendN2kPressure(gN2KInstance + 2);
 
-    SendN2KHeatIndexTemperature(gTemperature, gHumidity);
-    SendN2KDewPointTemperature(gTemperature, gHumidity);
+    SendN2KHeatIndexTemperature(gTemperature, gHumidity, gN2KInstance + 3);
+    SendN2KDewPointTemperature(gTemperature, gHumidity, gN2KInstance + 4);
 
     NMEA2000.ParseMessages();
     CheckN2kSourceAddressChange();
