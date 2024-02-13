@@ -7,12 +7,12 @@
   - [NMEA 2000](#nmea-2000)
   - [Librarys](#librarys)
   - [Required hardware](#required-hardware)
-  - [Settings](#settings)
+  - [Configuration](#configuration)
     - [NMEA 2000 Settings](#nmea-2000-settings)
       - [Instance](#instance)
       - [SID](#sid)
-      - [Temperatur source](#temperatur-source)
-      - [Humidity source](#humidity-source)
+    - [Temperatur source](#temperatur-source)
+    - [Humidity source](#humidity-source)
   - [WiFi](#wifi)
     - [Default Password](#default-password)
     - [Default IP address](#default-ip-address)
@@ -41,7 +41,7 @@ and for pressure
 
 ## Required hardware
 
-## Settings
+## Configuration
 ### NMEA 2000 Settings
 
 #### Instance
@@ -50,7 +50,7 @@ This should be unique at least on one device. May be best to have it unique over
 #### SID
 Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
 
-#### Temperatur source
+### Temperatur source
 One of the following temperature sources can be selected
 - Sea water temperature
 - Outside temperature
@@ -65,7 +65,7 @@ One of the following temperature sources can be selected
 - Exhaust gas temperature
 - Shaft seal temparature
 
-#### Humidity source
+### Humidity source
 can be one of the following location
 - inside
 - outside
