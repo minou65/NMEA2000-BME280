@@ -72,7 +72,7 @@ iotwebconf::NumberParameter SourceHumidityParam = iotwebconf::NumberParameter("N
 iotwebconf::ParameterGroup SourcesGroup = iotwebconf::ParameterGroup("SourcesGroup", "Sources");
 
 char TempSourceValue[STRING_LEN];
-iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperature",
+iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperature source",
     "TempSource", 
     TempSourceValue,
     STRING_LEN, 
@@ -84,7 +84,7 @@ iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperatur
 );
 
 char HumiditySourceValue[STRING_LEN];
-iotwebconf::SelectParameter HumiditySource = iotwebconf::SelectParameter("Humidity",
+iotwebconf::SelectParameter HumiditySource = iotwebconf::SelectParameter("Humidity source",
     "HumiditySource",
     HumiditySourceValue,
     STRING_LEN,
