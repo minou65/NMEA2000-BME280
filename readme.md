@@ -18,8 +18,8 @@
     - [Default IP address](#default-ip-address)
     - [OTA](#ota)
     - [Configuration options](#configuration-options)
-    - [Blinking code](#blinking-code)
-    - [Reset](#reset)
+  - [Blinking code](#blinking-code)
+  - [Reset](#reset)
 
 ## Description
 Reads temperature, humidity, and pressure. Includes environment calculations
@@ -105,7 +105,7 @@ to connect to. __*__
 - __WiFi password__ - The password of the network above. Note, that
 unsecured passwords are not supported in your protection. __*__
 
-### Blinking code
+## Blinking code
 Prevoius chapters were mentioned blinking patterns, now here is a
 table summarize the menaning of the blink codes.
 
@@ -117,7 +117,7 @@ network around it. You can connect to the device with your smartphone
 WiFi network.
 - __Mostly off with occasional short flash__ - The device is online.
 
-### Reset
+## Reset
 When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 password to buld an AP. (E.g. in case of lost password)
 
