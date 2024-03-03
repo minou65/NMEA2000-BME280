@@ -76,8 +76,78 @@ extern void wifiInit();
 extern void wifiLoop();
 
 static WiFiClient wifiClient;
-
 extern IotWebConf iotWebConf;
+
+class NMEAConfig : public iotwebconf::ParameterGroup {
+public:
+    NMEAConfig() : ParameterGroup("nmeaconfig", "NMEA configuration") {
+        snprintf(instanceID, STRING_LEN, "%s-instance", this->getId());
+        snprintf(sidID, STRING_LEN, "%s-sid", this->getId());
+        snprintf(sourceID, STRING_LEN, "%s-source", this->getId());
+
+        this->addItem(&this->InstanceParam);
+        this->addItem(&this->SIDParam);
+
+        iotWebConf.addHiddenParameter(&SourceParam);
+
+        // additional sources
+        snprintf(sourceIDPressure, STRING_LEN, "%s-sourcepressure", this->getId());
+        snprintf(sourceIDHumidity, STRING_LEN, "%s-sourcehumidity", this->getId());
+
+        iotWebConf.addHiddenParameter(&SourcePressureParam);
+        iotWebConf.addHiddenParameter(&SourceHumidityParam);
+
+    }
+
+    uint8_t Instance() { return atoi(InstanceValue); };
+    uint8_t SID() { return atoi(SIDValue); };
+    uint8_t Source() { return atoi(SourceValue); };
+
+    void SetSource(uint8_t source_) {
+        String s;
+        s = (String)source_;
+        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+    }
+
+    // additional sources
+    uint8_t SourcePressure() { return atoi(SourcePressureValue); };
+    uint8_t SourceHumidity() { return atoi(SourceHumidityValue); };
+
+    void SetSourcePressure(uint8_t source_) {
+        String s;
+        s = (String)source_;
+        strncpy(SourcePressureParam.valueBuffer, s.c_str(), NUMBER_LEN);
+    }
+
+    void SetSourceHumidity(uint8_t source_) {
+        String s;
+        s = (String)source_;
+        strncpy(SourceHumidityParam.valueBuffer, s.c_str(), NUMBER_LEN);
+    }
+private:
+    iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", instanceID, InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
+    iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", sidID, SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
+    iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("Source", sourceID, SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
+
+    char InstanceValue[NUMBER_LEN];
+    char SIDValue[NUMBER_LEN];
+    char SourceValue[NUMBER_LEN];
+
+
+    char instanceID[STRING_LEN];
+    char sidID[STRING_LEN];
+    char sourceID[STRING_LEN];
+
+    // additional sources
+    iotwebconf::NumberParameter SourcePressureParam = iotwebconf::NumberParameter("SourcePressure", sourceIDPressure, SourcePressureValue, NUMBER_LEN, "23", nullptr, nullptr);
+    iotwebconf::NumberParameter SourceHumidityParam = iotwebconf::NumberParameter("SourceHumidity", sourceIDHumidity, SourceHumidityValue, NUMBER_LEN, "24", nullptr, nullptr);
+    char SourcePressureValue[NUMBER_LEN];
+    char SourceHumidityValue[NUMBER_LEN];
+
+    char sourceIDPressure[STRING_LEN];
+    char sourceIDHumidity[STRING_LEN];
+
+};
 
 #endif
 

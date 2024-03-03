@@ -9,8 +9,6 @@
 #endif
 
 #include <time.h>
-//needed for library
-
 #include <DNSServer.h>
 #include <iostream>
 #include <string.h>
@@ -31,6 +29,7 @@
 //      First it will light up (kept LOW), on Wifi connection it will blink,
 //      when connected to the Wifi it will turn off (kept HIGH).
 #define STATUS_PIN LED_BUILTIN
+
 #if ESP32 
 #define ON_LEVEL HIGH
 #else
@@ -56,23 +55,12 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-char InstanceValue[NUMBER_LEN];
-char SIDValue[NUMBER_LEN];
-char SourceValue[NUMBER_LEN];
-char SourcePressureValue[NUMBER_LEN];
-char SourceHumidityValue[NUMBER_LEN];
-iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
-iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
-iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
-iotwebconf::NumberParameter SourcePressureParam = iotwebconf::NumberParameter("N2KSourcePressure", "N2KSourcePressure", SourcePressureValue, NUMBER_LEN, "23", nullptr, nullptr);
-iotwebconf::NumberParameter SourceHumidityParam = iotwebconf::NumberParameter("N2KSourceHumidity", "N2KSourceHumidity", SourceHumidityValue, NUMBER_LEN, "24", nullptr, nullptr);
+NMEAConfig Config = NMEAConfig();
 
-
-iotwebconf::ParameterGroup SourcesGroup = iotwebconf::ParameterGroup("SourcesGroup", "Sources");
+iotwebconf::ParameterGroup SourcesGroup = iotwebconf::ParameterGroup("SourcesGroup", "Source");
 
 char TempSourceValue[STRING_LEN];
-iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperature source",
+iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperature",
     "TempSource", 
     TempSourceValue,
     STRING_LEN, 
@@ -84,7 +72,7 @@ iotwebconf::SelectParameter TempSource = iotwebconf::SelectParameter("Temperatur
 );
 
 char HumiditySourceValue[STRING_LEN];
-iotwebconf::SelectParameter HumiditySource = iotwebconf::SelectParameter("Humidity source",
+iotwebconf::SelectParameter HumiditySource = iotwebconf::SelectParameter("Humidity",
     "HumiditySource",
     HumiditySourceValue,
     STRING_LEN,
@@ -104,16 +92,10 @@ void wifiInit() {
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
 
-    InstanceGroup.addItem(&InstanceParam);
-    InstanceGroup.addItem(&SIDParam);
-    iotWebConf.addHiddenParameter(&SourceParam);
-    iotWebConf.addHiddenParameter(&SourcePressureParam);
-    iotWebConf.addHiddenParameter(&SourceHumidityParam);
-
     SourcesGroup.addItem(&TempSource);
     SourcesGroup.addItem(&HumiditySource);
 
-    iotWebConf.addParameterGroup(&InstanceGroup);
+    iotWebConf.addParameterGroup(&Config);
     iotWebConf.addParameterGroup(&SourcesGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
@@ -142,15 +124,9 @@ void wifiLoop() {
     if (gSaveParams) {
         Serial.println(F("Parameters are changed,save them"));
 
-        String s;
-        s = (String)gN2KSource[DeviceTemperature];
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-
-        s = (String)gN2KSource[DeviceHumidity];
-        strncpy(SourceHumidityParam.valueBuffer, s.c_str(), NUMBER_LEN);
-
-        s = (String)gN2KSource[DevicePressure];
-        strncpy(SourcePressureParam.valueBuffer, s.c_str(), NUMBER_LEN);
+        Config.SetSource(gN2KSource[DeviceTemperature]);
+        Config.SetSourceHumidity(gN2KSource[DeviceHumidity]);
+        Config.SetSourcePressure(gN2KSource[DevicePressure]);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
@@ -237,12 +213,12 @@ void convertParams() {
     gTempSource = tN2kTempSource(atoi(TempSourceValue));
     gHumiditySource = tN2kHumiditySource(atoi(HumiditySourceValue));
 
-    gN2KInstance = atoi(InstanceValue);
-    gN2KSID = atoi(SIDValue);
+    gN2KInstance = Config.Instance();
+    gN2KSID = Config.SID();
 
-    gN2KSource[DeviceTemperature] = atoi(SourceValue);
-    gN2KSource[DevicePressure] = atoi(SourcePressureValue);
-    gN2KSource[DeviceHumidity] = atoi(SourceHumidityValue);
+    gN2KSource[DeviceTemperature] = Config.Source();
+    gN2KSource[DevicePressure] = Config.SourcePressure();
+    gN2KSource[DeviceHumidity] = Config.SourceHumidity();
 }
 
 void configSaved() {
