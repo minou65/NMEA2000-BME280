@@ -22,7 +22,7 @@
   - [Reset](#reset)
 
 ## Description
-Reads temperature, humidity, and pressure. Includes environment calculations
+Measures temperature, humidity and pressure. The dew point and heat index are also calculated
 
 ## NMEA 2000
 Depending on the temperature source, one of the following PNGs are sent
