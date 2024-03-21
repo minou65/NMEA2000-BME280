@@ -81,7 +81,7 @@ TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
 
-char Version[] = "1.0.0.2 (12.02.2024)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.3 (2024-03-21)"; // Manufacturer's Software version code
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
