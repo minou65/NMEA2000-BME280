@@ -19,6 +19,8 @@
 #include "common.h"
 #include "webhandling.h"
 
+char Version[] = "1.0.0.4 (2024-04-24)"; // Manufacturer's Software version code
+
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
 uint8_t gN2KSID = 1;
@@ -80,8 +82,6 @@ double gheatIndex = 0;
 TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
-
-char Version[] = "1.0.0.3 (2024-03-21)"; // Manufacturer's Software version code
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
