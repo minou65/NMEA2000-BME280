@@ -41,6 +41,7 @@
 const char thingName[] = "NMEA2000-BME280";
 
 // -- Method declarations.
+void handleData();
 void handleRoot();
 void convertParams();
 
@@ -129,6 +130,7 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", handleRoot);
     server.on("/config", [] { iotWebConf.handleConfig(); });
+    server.on("/data", HTTP_GET, []() { handleData(); });
     server.onNotFound([]() { iotWebConf.handleNotFound(); });
 
     Serial.println("Ready.");
@@ -155,6 +157,17 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
+void handleData() {
+    String _json = "{";
+    	_json += "\"Temperature\":\"" + String(gTemperature) + "\",";
+        _json += "\"DewPoint\":\"" + String(gdewPoint) + "\",";
+        _json += "\"HeatIndex\":\"" + String(gheatIndex) + "\",";
+        _json += "\"Pressure\":\"" + String(gPressure) + "\",";
+        _json += "\"Humidity\":\"" + String(gHumidity) + "\"";
+    _json += "}";
+    server.send(200, "text/plain", _json);
+}
+
 using namespace std;
 
 void handleRoot() {
@@ -170,14 +183,14 @@ void handleRoot() {
     page.replace("{v}", iotWebConf.getThingName());
     page += "<style>";
     page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
-    // page.replace("center", "left");
     page += ".dot-grey{height: 12px; width: 12px; background-color: #bbb; border-radius: 50%; display: inline-block; }";
     page += ".dot-green{height: 12px; width: 12px; background-color: green; border-radius: 50%; display: inline-block; }";
 
     page += "</style>";
 
-    page += "<meta http-equiv=refresh content=30 />";
+    //page += "<meta http-equiv=refresh content=30 />";
     page += HTML_Start_Body;
+    page += HTML_JAVA_Script;
     page += "<table border=0 align=center>";
     page += "<tr><td>";
 
@@ -189,11 +202,11 @@ void handleRoot() {
 
     page.replace("{l}", Title);
     page += HTML_Start_Table;
-        page += "<tr><td align=left>Temperatur: </td><td>" + String(gTemperature) + "&deg;C" + "</td></tr>";
-        page += "<tr><td align=left>Dew point: </td><td>" + String(gdewPoint) + "&deg;C" + "</td></tr>";
-        page += "<tr><td align=left>Feels like: </td><td>" + String(gheatIndex) + "&deg;C" + "</td></tr>";
-        page += "<tr><td align=left>Pressure: </td><td>" + String(gPressure) + "mBar" + "</td></tr>";
-        page += "<tr><td align=left>Humidity:</td><td>" + String(gHumidity) + "%" + "</td></tr>";
+        page += "<tr><td align=left>Temperatur: </td><td><span id='TemperaturValue'>0</span>&deg;C</td></tr>";
+        page += "<tr><td align=left>Dew point: </td><td><span id='DewPoint'>0</span>&deg;C</td></tr>";
+        page += "<tr><td align=left>Feels like: </td><td><span id='HeatIndex'>0</span>&deg;C</td></tr>";
+        page += "<tr><td align=left>Pressure: </td><td><span id='PressureValue'>0</span>mBar</td></tr>";
+        page += "<tr><td align=left>Humidity:</td><td><span id='HumidityValue'>0</span>%</td></tr>";
 
     page += HTML_End_Table;
     page += HTML_End_Fieldset;
