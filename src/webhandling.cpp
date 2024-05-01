@@ -18,6 +18,7 @@
 #include "common.h"
 #include "webhandling.h"
 #include <N2kMessagesEnumToStr.h>
+#include "IotWebRoot.h"
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A1"
@@ -159,6 +160,7 @@ void wifiConnected() {
 
 void handleData() {
     String _json = "{";
+        _json += "\"rssi\":\"" + String(WiFi.RSSI()) + "\",";
     	_json += "\"Temperature\":\"" + String(gTemperature) + "\",";
         _json += "\"DewPoint\":\"" + String(gdewPoint) + "\",";
         _json += "\"HeatIndex\":\"" + String(gheatIndex) + "\",";
@@ -168,76 +170,77 @@ void handleData() {
     server.send(200, "text/plain", _json);
 }
 
-using namespace std;
+class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
+protected:
+    virtual String getScriptInner() {
+        String _s = HtmlRootFormatProvider::getScriptInner();
+        _s.replace("{millisecond}", "5000");
+        _s += F("function updateData(jsonData) {\n");
+        _s += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
+		_s += F("   document.getElementById('TemperaturValue').innerHTML = jsonData.Temperature + \"&deg;\" \n");
+		_s += F("   document.getElementById('DewPointValue').innerHTML = jsonData.DewPoint + \"&deg;\" \n");
+		_s += F("   document.getElementById('HeatIndexValue').innerHTML = jsonData.HeatIndex + \"&deg;\" \n");
+		_s += F("   document.getElementById('PressureValue').innerHTML = jsonData.Pressure + \"mBar\" \n");
+		_s += F("   document.getElementById('HumidityValue').innerHTML = jsonData.Humidity + \"%\" \n");
+
+        _s += F("}\n");
+
+        return _s;
+    }
+};
 
 void handleRoot() {
     // -- Let IotWebConf test and handle captive portal requests.
-    if (iotWebConf.handleCaptivePortal())
-    {
-        // -- Captive portal request were already served.
+    if (iotWebConf.handleCaptivePortal()){
         return;
     }
 
-    String page = HTML_Start_Doc;
-    
-    page.replace("{v}", iotWebConf.getThingName());
-    page += "<style>";
-    page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
-    page += ".dot-grey{height: 12px; width: 12px; background-color: #bbb; border-radius: 50%; display: inline-block; }";
-    page += ".dot-green{height: 12px; width: 12px; background-color: green; border-radius: 50%; display: inline-block; }";
+    MyHtmlRootFormatProvider rootFormatProvider;
 
-    page += "</style>";
+    String _response = "";
+    _response += rootFormatProvider.getHtmlHead(iotWebConf.getThingName());
+    _response += rootFormatProvider.getHtmlStyle();
+    _response += rootFormatProvider.getHtmlHeadEnd();
+    _response += rootFormatProvider.getHtmlScript();
 
-    //page += "<meta http-equiv=refresh content=30 />";
-    page += HTML_Start_Body;
-    page += HTML_JAVA_Script;
-    page += "<table border=0 align=center>";
-    page += "<tr><td>";
+    _response += rootFormatProvider.getHtmlTable();
+    _response += rootFormatProvider.getHtmlTableRow() + rootFormatProvider.getHtmlTableCol();
 
-    page += HTML_Start_Fieldset;
-    page += HTML_Fieldset_Legend;
-    //String Title = String(TempSourceNames[gTempSource]);
+    _response += F("<fieldset align=left style=\"border: 1px solid\">\n");
+    _response += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
+    _response += F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n");
+    _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-    String Title =  N2kEnumTypeToStr(gTempSource);
+	_response += rootFormatProvider.getHtmlFieldset("Temperature");
+	_response += rootFormatProvider.getHtmlTable();
+	_response += rootFormatProvider.getHtmlTableRowSpan("Temperatur", "TemperaturValue", "no data");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Dew point", "DewPointValue", "no data");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Feels like", "HeatIndexValue", "no data");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Pressure", "PressureValue", "no data");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Humidity", "HumidityValue", "no data");
+	_response += rootFormatProvider.getHtmlTableEnd();
+	_response += rootFormatProvider.getHtmlFieldsetEnd();
 
-    page.replace("{l}", Title);
-    page += HTML_Start_Table;
-        page += "<tr><td align=left>Temperatur: </td><td><span id='TemperaturValue'>0</span>&deg;C</td></tr>";
-        page += "<tr><td align=left>Dew point: </td><td><span id='DewPoint'>0</span>&deg;C</td></tr>";
-        page += "<tr><td align=left>Feels like: </td><td><span id='HeatIndex'>0</span>&deg;C</td></tr>";
-        page += "<tr><td align=left>Pressure: </td><td><span id='PressureValue'>0</span>mBar</td></tr>";
-        page += "<tr><td align=left>Humidity:</td><td><span id='HumidityValue'>0</span>%</td></tr>";
+    _response += rootFormatProvider.getHtmlFieldset("Network");
+    _response += rootFormatProvider.getHtmlTable();
+    _response += rootFormatProvider.getHtmlTableRowText("MAC Address:", WiFi.macAddress());
+    _response += rootFormatProvider.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str());
+    _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-    page += HTML_End_Table;
-    page += HTML_End_Fieldset;
+    _response += rootFormatProvider.addNewLine(2);
 
-    page += HTML_Start_Fieldset;
-    page += HTML_Fieldset_Legend;
-    page.replace("{l}", "Network");
-    page += HTML_Start_Table;
+    _response += rootFormatProvider.getHtmlTable();
+    _response += rootFormatProvider.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.");
+    _response += rootFormatProvider.getHtmlTableRowText(rootFormatProvider.getHtmlVersion(Version));
+    _response += rootFormatProvider.getHtmlTableEnd();
 
-    page += "<tr><td align=left>MAC Address:</td><td>" + String(WiFi.macAddress()) + "</td></tr>";
-    page += "<tr><td align=left>IP Address:</td><td>" + String(WiFi.localIP().toString().c_str()) + "</td></tr>";
+    _response += rootFormatProvider.getHtmlTableColEnd() + rootFormatProvider.getHtmlTableRowEnd();
+    _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlEnd();
 
-    page += HTML_End_Table;
-    page += HTML_End_Fieldset;
-
-    page += "<br>";
-    page += "<br>";
-
-    page += HTML_Start_Table;
-    page += "<tr><td align=left>Go to <a href = 'config'>configure page</a> to change configuration.</td></tr>";
-    // page += "<tr><td align=left>Go to <a href='setruntime'>runtime modification page</a> to change runtime data.</td></tr>";
-    page += "<tr><td><font size=1>Version: " + String(Version) + "</font></td></tr>";
-    page += HTML_End_Table;
-    page += HTML_End_Body;
-
-    page += HTML_End_Doc;
-
-
-    server.send(200, "text/html", page);
-
-
+	server.send(200, "text/html", _response);
 }
 
 void convertParams() {
