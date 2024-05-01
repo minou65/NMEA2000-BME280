@@ -25,7 +25,7 @@
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
-#define CONFIG_PIN  -1
+#define CONFIG_PIN  GPIO_NUM_13
 
 // -- Status indicator pin.
 //      First it will light up (kept LOW), on Wifi connection it will blink,
@@ -214,11 +214,11 @@ void handleRoot() {
 
 	_response += rootFormatProvider.getHtmlFieldset("Temperature");
 	_response += rootFormatProvider.getHtmlTable();
-	_response += rootFormatProvider.getHtmlTableRowSpan("Temperatur", "TemperaturValue", "no data");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Dew point", "DewPointValue", "no data");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Feels like", "HeatIndexValue", "no data");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Pressure", "PressureValue", "no data");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Humidity", "HumidityValue", "no data");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Temperatur", "no data", "TemperaturValue");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Dew point", "no data", "DewPointValue");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Feels like", "no data", "HeatIndexValue");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Pressure", "no data", "PressureValue");
+	_response += rootFormatProvider.getHtmlTableRowSpan("Humidity", "no data", "HumidityValue");
 	_response += rootFormatProvider.getHtmlTableEnd();
 	_response += rootFormatProvider.getHtmlFieldsetEnd();
 
