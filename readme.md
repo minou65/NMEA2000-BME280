@@ -121,4 +121,4 @@ WiFi network.
 When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 password to buld an AP. (E.g. in case of lost password)
 
-Reset pin is GPIO 36
+Reset pin is GPIO 13
