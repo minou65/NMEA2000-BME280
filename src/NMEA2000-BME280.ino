@@ -19,7 +19,7 @@
 #include "common.h"
 #include "webhandling.h"
 
-char Version[] = "1.0.0.4 (2024-04-24)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.5 (2024-05-01)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
