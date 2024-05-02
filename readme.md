@@ -4,6 +4,7 @@
 - [NMEA2000-BM280 environmental sensor](#nmea2000-bm280-environmental-sensor)
   - [Table of contents](#table-of-contents)
   - [Description](#description)
+  - [Schema](#schema)
   - [NMEA 2000](#nmea-2000)
   - [Librarys](#librarys)
   - [Required hardware](#required-hardware)
@@ -22,7 +23,21 @@
   - [Reset](#reset)
 
 ## Description
-Measures temperature, humidity and pressure. The dew point and heat index are also calculated
+This device measures temperature, humidity, and air pressure. The dew point and perceived temperature are also calculated. The sensor used is a BM280. The values are transmitted as NMEA 2000 messages via an NMEA bus. Device configuration is done through a website, and real-time values can also be viewed on a website in addition to the NMEA bus. On the configuration page, there is a link available for convenient firmware updates.
+
+the BME280 is a versatile environmental sensor that provides accurate measurements of temperature, humidity, and barometric pressure.
+- Temperatures ranging from -40°C to +85°C with a high degree of accuracy
+- relative humidity in the range of 0% to 100%
+- pressure sensor data is in hPa (hectopascals) within the range of 300 hPa to 1100 hPa at temperatures from 0°C to 65°C. The absolute accuracy for pressure measurement is approximately ±1 hPa
+  
+![homepage](img/homepage.png)
+
+In the \stl directory, there are two STL files. These can be used to 3D print an appropriate housing on a 3D printer.
+
+<img src="img/housing.png" width="200" alt="housing">
+
+## Schema
+<img src="sch/schema.png" width="800" alt="housing">
 
 ## NMEA 2000
 Depending on the temperature source, one of the following PNGs are sent
