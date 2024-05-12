@@ -8,17 +8,17 @@
 #include <ESP8266WiFi.h>      
 #endif
 
-#include <time.h>
 #include <DNSServer.h>
-#include <iostream>
-#include <string.h>
-
 #include <IotWebConf.h>
-#include <IotWebConfESP32HTTPUpdateServer.h>
+#include <IotWebRoot.h>
+#include <IotWebConfAsyncClass.h>
+#include <IotWebConfAsyncUpdateServer.h>
+#include <N2kMessagesEnumToStr.h>
+
 #include "common.h"
 #include "webhandling.h"
-#include <N2kMessagesEnumToStr.h>
-#include "IotWebRoot.h"
+#include "favicon.h"
+
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A1"
@@ -42,8 +42,8 @@
 const char thingName[] = "NMEA2000-BME280";
 
 // -- Method declarations.
-void handleData();
-void handleRoot();
+void handleData(AsyncWebServerRequest* request);
+void handleRoot(AsyncWebServerRequest* request);
 void convertParams();
 
 // -- Callback methods.
@@ -54,10 +54,11 @@ bool gParamsChanged = true;
 bool gSaveParams = false;
 
 DNSServer dnsServer;
-WebServer server(80);
-HTTPUpdateServer httpUpdater;
+AsyncWebServer server(80);
+AsyncWebServerWrapper asyncWebServerWrapper(&server);
+AsyncUpdateServer AsyncUpdater;
 
-IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
+IotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiInitialApPassword, CONFIG_VERSION);
 
 NMEAConfig Config = NMEAConfig();
 
@@ -113,10 +114,9 @@ void wifiInit() {
     iotWebConf.addParameterGroup(&Config);
     iotWebConf.addParameterGroup(&SourcesGroup);
     
-    // -- Define how to handle updateServer calls.
     iotWebConf.setupUpdateServer(
-        [](const char* updatePath) { httpUpdater.setup(&server, updatePath); },
-        [](const char* userName, char* password) { httpUpdater.updateCredentials(userName, password); });
+        [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath); },
+        [](const char* userName, char* password) { AsyncUpdater.updateCredentials(userName, password); });
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -129,10 +129,25 @@ void wifiInit() {
     convertParams();
 
     // -- Set up required URL handlers on the web server.
-    server.on("/", handleRoot);
-    server.on("/config", [] { iotWebConf.handleConfig(); });
-    server.on("/data", HTTP_GET, []() { handleData(); });
-    server.onNotFound([]() { iotWebConf.handleNotFound(); });
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
+    server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
+        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
+        iotWebConf.handleConfig(&asyncWebRequestWrapper);
+        }
+    );
+    server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* response = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
+        request->send(response);
+        }
+    );
+    server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
+    server.onNotFound([](AsyncWebServerRequest* request) {
+        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
+        iotWebConf.handleNotFound(&asyncWebRequestWrapper);
+        }
+    );
+
+	WebSerial.begin(&server, "/webserial");
 
     Serial.println("Ready.");
 }
@@ -158,7 +173,7 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
-void handleData() {
+void handleData(AsyncWebServerRequest* request) {
     String _json = "{";
         _json += "\"rssi\":\"" + String(WiFi.RSSI()) + "\",";
     	_json += "\"Temperature\":\"" + String(gTemperature) + "\",";
@@ -167,7 +182,7 @@ void handleData() {
         _json += "\"Pressure\":\"" + String(gPressure) + "\",";
         _json += "\"Humidity\":\"" + String(gHumidity) + "\"";
     _json += "}";
-    server.send(200, "text/plain", _json);
+    request->send(200, "text/plain", _json);
 }
 
 class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
@@ -189,58 +204,77 @@ protected:
     }
 };
 
-void handleRoot() {
+void handleRoot(AsyncWebServerRequest* request) {
     // -- Let IotWebConf test and handle captive portal requests.
     if (iotWebConf.handleCaptivePortal()){
         return;
     }
 
-    MyHtmlRootFormatProvider rootFormatProvider;
+    std::string content_;
+    MyHtmlRootFormatProvider fp_;
 
-    String _response = "";
-    _response += rootFormatProvider.getHtmlHead(iotWebConf.getThingName());
-    _response += rootFormatProvider.getHtmlStyle();
-    _response += rootFormatProvider.getHtmlHeadEnd();
-    _response += rootFormatProvider.getHtmlScript();
+	content_ += fp_.getHtmlHead(iotWebConf.getThingName()).c_str();
+	content_ += fp_.getHtmlStyle().c_str();
+	content_ += fp_.getHtmlHeadEnd().c_str();
+	content_ += fp_.getHtmlScript().c_str();
 
-    _response += rootFormatProvider.getHtmlTable();
-    _response += rootFormatProvider.getHtmlTableRow() + rootFormatProvider.getHtmlTableCol();
+	content_ += fp_.getHtmlTable().c_str();
+	content_ += fp_.getHtmlTableRow().c_str();
+	content_ += fp_.getHtmlTableCol().c_str();
 
-    _response += F("<fieldset align=left style=\"border: 1px solid\">\n");
-    _response += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
-    _response += F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n");
-    _response += rootFormatProvider.getHtmlTableEnd();
-    _response += rootFormatProvider.getHtmlFieldsetEnd();
+	content_ += String(F("<fieldset align=left style=\"border: 1px solid\">\n")).c_str();
+	content_ += String(F("<table border=\"0\" align=\"center\" width=\"100%\">\n")).c_str();
+	content_ += String(F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n")).c_str();
+	content_ += fp_.getHtmlTableEnd().c_str();
+	content_ += fp_.getHtmlFieldsetEnd().c_str();
 
-	_response += rootFormatProvider.getHtmlFieldset("Temperature");
-	_response += rootFormatProvider.getHtmlTable();
-	_response += rootFormatProvider.getHtmlTableRowSpan("Temperatur", "no data", "TemperaturValue");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Dew point", "no data", "DewPointValue");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Feels like", "no data", "HeatIndexValue");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Pressure", "no data", "PressureValue");
-	_response += rootFormatProvider.getHtmlTableRowSpan("Humidity", "no data", "HumidityValue");
-	_response += rootFormatProvider.getHtmlTableEnd();
-	_response += rootFormatProvider.getHtmlFieldsetEnd();
+	content_ += fp_.getHtmlFieldset("Temperature").c_str();
+	content_ += fp_.getHtmlTable().c_str();
+	content_ += fp_.getHtmlTableRowSpan("Temperatur", "no data", "TemperaturValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Dew point", "no data", "DewPointValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Feels like", "no data", "HeatIndexValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Pressure", "no data", "PressureValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Humidity", "no data", "HumidityValue").c_str();
+	content_ += fp_.getHtmlTableEnd().c_str();
+	content_ += fp_.getHtmlFieldsetEnd().c_str();
 
-    _response += rootFormatProvider.getHtmlFieldset("Network");
-    _response += rootFormatProvider.getHtmlTable();
-    _response += rootFormatProvider.getHtmlTableRowText("MAC Address:", WiFi.macAddress());
-    _response += rootFormatProvider.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str());
-    _response += rootFormatProvider.getHtmlTableEnd();
-    _response += rootFormatProvider.getHtmlFieldsetEnd();
+	content_ += fp_.getHtmlFieldset("Network").c_str();
+	content_ += fp_.getHtmlTable().c_str();
+	content_ += fp_.getHtmlTableRowText("MAC Address:", WiFi.macAddress().c_str()).c_str();
+	content_ += fp_.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str()).c_str();
+	content_ += fp_.getHtmlTableEnd().c_str();
+	content_ += fp_.getHtmlFieldsetEnd().c_str();
 
-    _response += rootFormatProvider.addNewLine(2);
+	content_ += fp_.addNewLine(2).c_str();
 
-    _response += rootFormatProvider.getHtmlTable();
-    _response += rootFormatProvider.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.");
-    _response += rootFormatProvider.getHtmlTableRowText(rootFormatProvider.getHtmlVersion(Version));
-    _response += rootFormatProvider.getHtmlTableEnd();
+	content_ += fp_.getHtmlTable().c_str();
 
-    _response += rootFormatProvider.getHtmlTableColEnd() + rootFormatProvider.getHtmlTableRowEnd();
-    _response += rootFormatProvider.getHtmlTableEnd();
-    _response += rootFormatProvider.getHtmlEnd();
+    content_ += fp_.getHtmlTable().c_str();
+    content_ += fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.").c_str();
+    content_ += fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)).c_str();
+    content_ += fp_.getHtmlTableEnd().c_str();
 
-	server.send(200, "text/html", _response);
+    content_ += fp_.getHtmlTableColEnd().c_str();
+    content_ += fp_.getHtmlTableRowEnd().c_str();
+    content_ += fp_.getHtmlTableEnd().c_str();
+    content_ += fp_.getHtmlEnd().c_str();
+
+    AsyncWebServerResponse* response = request->beginChunkedResponse("text/html", [content_](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+
+        std::string chunk_ = "";
+        size_t len_ = min(content_.length() - index, maxLen);
+        if (len_ > 0) {
+            chunk_ = content_.substr(index, len_);
+            chunk_.copy((char*)buffer, chunk_.length());
+        }
+        if (index + len_ <= content_.length())
+            return chunk_.length();
+        else
+            return 0;
+
+        });
+    response->addHeader("Server", "ESP Async Web Server");
+    request->send(response);
 }
 
 void convertParams() {

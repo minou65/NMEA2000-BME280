@@ -16,6 +16,7 @@
 #endif
 
 #include <IotWebConf.h>    
+#include <WebSerial.h>
 
 #define STRING_LEN 64
 #define NUMBER_LEN 5
