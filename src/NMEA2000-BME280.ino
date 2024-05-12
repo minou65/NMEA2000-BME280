@@ -19,6 +19,8 @@
 #include "common.h"
 #include "webhandling.h"
 
+bool debugMode = false;
+
 char Version[] = "1.0.0.5 (2024-05-01)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
@@ -144,23 +146,18 @@ void setup() {
         DeviceId3 += (chipid[i] << (9 * i)); // 9*i statt 7*i oder 8*i
     }
 
-#ifdef DEBUG_MSG
     Serial.begin(115200);
-
-    // wait for serial port to open on native usb devices
     while (!Serial) {
         delay(1);
     }
-#endif // DEBUG_MSG
 
     // init wifi
     wifiInit();
 
 
     if (!bme.begin(BME280_ADDRESS_ALTERNATE)) {
-#ifdef DEBUG_MSG
-        Serial.println("Could not find a valid BME280 sensor, check wiring!");
-#endif // DEBUG_MSG
+		WebSerial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+		DEBUG_PRINTLN(F("Could not find a valid BME280 sensor, check wiring!"));
     }
 
     xTaskCreatePinnedToCore(
