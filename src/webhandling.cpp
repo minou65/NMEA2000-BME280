@@ -211,8 +211,8 @@ protected:
 };
 
 void handleRoot(AsyncWebServerRequest* request) {
-    // -- Let IotWebConf test and handle captive portal requests.
-    if (iotWebConf.handleCaptivePortal()){
+    AsyncWebRequestWrapper asyncWebRequestWrapper(request);
+    if (iotWebConf.handleCaptivePortal(&asyncWebRequestWrapper)) {
         return;
     }
 
