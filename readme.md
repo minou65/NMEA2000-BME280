@@ -32,9 +32,9 @@ the BME280 is a versatile environmental sensor that provides accurate measuremen
   
 ![homepage](img/homepage.png)
 
-In the \stl directory, there are two STL files. These can be used to 3D print an appropriate housing on a 3D printer.
+In the \stl directory are two STL files. These can be used to print an appropriate housing on a 3D printer.
 
-<img src="img/housing.png" width="200" alt="housing">
+<img src="img/housing.png" width="300" alt="housing">
 
 ## Schema
 <img src="sch/schema.png" width="800" alt="housing">
