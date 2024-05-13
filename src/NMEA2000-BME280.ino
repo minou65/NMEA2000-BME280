@@ -20,8 +20,8 @@
 #include "webhandling.h"
 
 bool debugMode = false;
-
-char Version[] = "1.0.0.5 (2024-05-01)"; // Manufacturer's Software version code
+String gStatusSensor;
+char Version[] = "1.1.0.1 (2024-05-13)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
@@ -154,11 +154,12 @@ void setup() {
     // init wifi
     wifiInit();
 
-
+    gStatusSensor = "OK";
     if (!bme.begin(BME280_ADDRESS_ALTERNATE)) {
-		WebSerial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+        gStatusSensor = "NOK";
 		DEBUG_PRINTLN(F("Could not find a valid BME280 sensor, check wiring!"));
     }
+	
 
     xTaskCreatePinnedToCore(
         loop2, /* Function to implement the task */
@@ -266,12 +267,15 @@ void setup() {
 
 void SendN2kTemperature(uint8_t instance_) {
     tN2kMsg N2kMsg;
-    double Temperature;
+    double Temperature = 0.00;
 
     if (TemperatureScheduler.IsTime()) {
         TemperatureScheduler.UpdateNextTime();
 
-        Temperature = bme.readTemperature();
+		if (gStatusSensor != "NOK") {
+            Temperature = bme.readTemperature();
+		}
+        
         SetN2kPGN130312(N2kMsg, gN2KSID, instance_, gTempSource, CToKelvin(Temperature), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
@@ -284,12 +288,14 @@ void SendN2kTemperature(uint8_t instance_) {
 
 void SendN2kHumidity(uint8_t instance_) {
     tN2kMsg N2kMsg;
-    double Humidity;
+    double Humidity = 0.00;
 
     if (HumidityScheduler.IsTime()) {
         HumidityScheduler.UpdateNextTime();
 
-        Humidity = bme.readHumidity();
+        if (gStatusSensor != "NOK") {
+            Humidity = bme.readHumidity();
+        }
         SetN2kPGN130313(N2kMsg, gN2KSID, instance_, gHumiditySource, Humidity, N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceHumidity);
         gHumidity = Humidity;
@@ -298,12 +304,16 @@ void SendN2kHumidity(uint8_t instance_) {
 
 void SendN2kPressure(uint8_t instance_) {
     tN2kMsg N2kMsg;
-    double Pressure;
+    double Pressure = 0.00;
 
     if (PressureScheduler.IsTime()) {
         PressureScheduler.UpdateNextTime();
-
-        Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
+        if (gStatusSensor != "NOK") {
+            Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
+        }
+        else {
+           WebSerial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+        }
         SetN2kPGN130314(N2kMsg, gN2KSID, instance_, N2kps_Atmospheric, mBarToPascal(Pressure));
         NMEA2000.SendMsg(N2kMsg, DevicePressure);
         gPressure = Pressure;
@@ -312,11 +322,15 @@ void SendN2kPressure(uint8_t instance_) {
 
 void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_, uint8_t instance_) {
     tN2kMsg N2kMsg;
+	double _heatIndex = 0.00;
 
     if (HeatIndexScheduler.IsTime()) {
         HeatIndexScheduler.UpdateNextTime();
 
-        double _heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
+        if (gStatusSensor != "NOK") {
+			_heatIndex = heatIndexCelsius(Temperatur_, Humidity_);
+		}
+
         SetN2kPGN130312(N2kMsg, gN2KSID, instance_, N2kts_HeatIndexTemperature, CToKelvin(_heatIndex), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
@@ -329,11 +343,14 @@ void SendN2KHeatIndexTemperature(double Temperatur_, double Humidity_, uint8_t i
 
 void SendN2KDewPointTemperature(double Temperatur_, double Humidity_, uint8_t instance_) {
     tN2kMsg N2kMsg;
+	double _dewPoint = 0.00;
 
     if (DewPointScheduler.IsTime()) {
         DewPointScheduler.UpdateNextTime();
+		if (gStatusSensor != "NOK") {
+			_dewPoint = dewPoint(Temperatur_, Humidity_);
+		}
 
-        double _dewPoint = dewPoint(Temperatur_, Humidity_);
         SetN2kPGN130312(N2kMsg, gN2KSID, instance_, N2kts_DewPointTemperature, CToKelvin(_dewPoint), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg, DeviceTemperature);
 
