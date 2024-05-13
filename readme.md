@@ -53,6 +53,12 @@ and for pressure
 - 130314, // Pressure
 
 ## Librarys
+- NMEA2000
+- NMEA200_ESP
+- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [IotWebConf](https://github.com/minou65/IotWebConf)
+- [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
+- [IotWebRoot](https://github.com/minou65/IotWebRoot)
 
 ## Required hardware
 
