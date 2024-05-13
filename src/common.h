@@ -12,6 +12,7 @@
 #endif
 
 extern bool debugMode;
+extern String gStatusSensor;
 
 #define DEBUG_PRINT(x) if (debugMode) Serial.print(x) 
 #define DEBUG_PRINTLN(x) if (debugMode) Serial.println(x)
