@@ -46,7 +46,7 @@ Depending on the temperature source, one of the following PNGs are sent
 - 130312, // Temperature - DEPRECATED
 - 130316, // Temperature, Extended Range
 
-For humidity the PGN is sent
+For humidity the following PGN is sent
 - 130313, // Humidity
 
 and for pressure
