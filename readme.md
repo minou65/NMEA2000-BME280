@@ -53,8 +53,10 @@ and for pressure
 - 130314, // Pressure
 
 ## Librarys
+- [Adafruit_BME280_Library](https://github.com/adafruit/Adafruit_BME280_Library)
 - NMEA2000
 - NMEA200_ESP
+- [AsyncTCP](https://github.com/dvarrel/AsyncTCP)
 - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
 - [IotWebConf](https://github.com/minou65/IotWebConf)
 - [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
