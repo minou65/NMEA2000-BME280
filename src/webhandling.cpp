@@ -181,11 +181,11 @@ void handleData(AsyncWebServerRequest* request) {
     JsonVariant& json_ = response->getRoot();
 
 	json_["rssi"] = WiFi.RSSI();
-	json_["Temperature"] = gTemperature;
-	json_["DewPoint"] = gdewPoint;
-	json_["HeatIndex"] = gheatIndex;
-	json_["Pressure"] = gPressure;
-	json_["Humidity"] = gHumidity;
+	json_["Temperature"] = String(gTemperature, 2);
+	json_["DewPoint"] = String(gdewPoint, 2);
+	json_["HeatIndex"] = String(gheatIndex, 2);
+	json_["Pressure"] = String(gPressure, 2);
+	json_["Humidity"] = String(gHumidity, 2);
 
 	response->setLength();
 	request->send(response);
@@ -236,11 +236,11 @@ void handleRoot(AsyncWebServerRequest* request) {
 
 	content_ += fp_.getHtmlFieldset("Temperature").c_str();
 	content_ += fp_.getHtmlTable().c_str();
-	content_ += fp_.getHtmlTableRowSpan("Temperatur", "no data", "TemperaturValue").c_str();
-	content_ += fp_.getHtmlTableRowSpan("Dew point", "no data", "DewPointValue").c_str();
-	content_ += fp_.getHtmlTableRowSpan("Feels like", "no data", "HeatIndexValue").c_str();
-	content_ += fp_.getHtmlTableRowSpan("Pressure", "no data", "PressureValue").c_str();
-	content_ += fp_.getHtmlTableRowSpan("Humidity", "no data", "HumidityValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Temperatur:", "no data", "TemperaturValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Dew point:", "no data", "DewPointValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Feels like:", "no data", "HeatIndexValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Pressure:", "no data", "PressureValue").c_str();
+	content_ += fp_.getHtmlTableRowSpan("Humidity:", "no data", "HumidityValue").c_str();
 	content_ += fp_.getHtmlTableEnd().c_str();
 	content_ += fp_.getHtmlFieldsetEnd().c_str();
 
