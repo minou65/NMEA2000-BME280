@@ -271,7 +271,7 @@ void handleRoot(AsyncWebServerRequest* request) {
         std::string chunk_ = "";
         size_t len_ = min(content_.length() - index, maxLen);
         if (len_ > 0) {
-            chunk_ = content_.substr(index, len_);
+            chunk_ = content_.substr(index, len_ - 1);
             chunk_.copy((char*)buffer, chunk_.length());
         }
         if (index + len_ <= content_.length())

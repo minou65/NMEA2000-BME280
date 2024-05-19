@@ -21,7 +21,7 @@
 
 bool debugMode = false;
 String gStatusSensor;
-char Version[] = "1.1.0.1 (2024-05-13)"; // Manufacturer's Software version code
+char Version[] = "1.1.0.2 (2024-05-18)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
