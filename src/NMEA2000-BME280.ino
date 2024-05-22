@@ -309,7 +309,7 @@ void SendN2kPressure(uint8_t instance_) {
     if (PressureScheduler.IsTime()) {
         PressureScheduler.UpdateNextTime();
         if (gStatusSensor != "NOK") {
-            Pressure = bme.readPressure() / 100;  // Read and convert to mBar 
+            Pressure = bme.readPressure() / 100.0f;  // Read and convert to mBar 
         }
         else {
            WebSerial.println(F("Could not find a valid BME280 sensor, check wiring!"));
