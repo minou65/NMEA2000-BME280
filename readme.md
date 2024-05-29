@@ -53,11 +53,14 @@ and for pressure
 - 130314, // Pressure
 
 ## Librarys
-- [Adafruit_BME280_Library](https://github.com/adafruit/Adafruit_BME280_Library)
-- NMEA2000
-- NMEA200_ESP
-- [AsyncTCP](https://github.com/dvarrel/AsyncTCP)
-- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [Adafruit BME280 Library](https://github.com/adafruit/Adafruit_BME280_Library)
+- [Adafruit Unified Sensor](https://github.com/adafruit/Adafruit_Sensor)
+- [NMEA2000](https://github.com/ttlappalainen/NMEA2000)
+- [NMEA200_ESP32](https://github.com/ttlappalainen/NMEA2000_esp32)
+- [AsyncTCP (1.1.1)](https://github.com/me-no-dev/AsyncTCP.git)
+- [ESPAsyncWebServer (1.2.3)](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [ArduionJSON (6.21.2)](https://github.com/bblanchon/ArduinoJson)
+- [Webserial (1.4.0)](https://github.com/ayushsharma82/WebSerial)
 - [IotWebConf](https://github.com/minou65/IotWebConf)
 - [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
 - [IotWebRoot](https://github.com/minou65/IotWebRoot)
