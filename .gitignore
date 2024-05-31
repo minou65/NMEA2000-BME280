@@ -403,3 +403,5 @@ FodyWeavers.xsd
 *.s#1
 /.vscode/settings.json
 sch/Thumbs.db
+/src/NMEA2000-BME280.ino.nodemcu-32s.bin
+/src/NMEA2000-BME280.ino.nodemcu-32s.bin
