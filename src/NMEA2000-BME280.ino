@@ -22,7 +22,7 @@
 
 bool debugMode = false;
 String gStatusSensor;
-char Version[] = VERSION; // Manufacturer's Software version code
+char Version[] = VERSION_STR; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
@@ -152,7 +152,7 @@ void setup() {
         delay(1);
     }
 
-    Serial.printf("Firmware version:%s\n", Version);
+    Serial.printf("Firmware version:%s\n", VERSION);
 
     // init wifi
     wifiInit();
