@@ -1,6 +1,6 @@
 ﻿# NMEA2000-BM280 environmental sensor
 
-<img src="img/IMG_0300.png" width="600" alt="garmin">
+<img src="img/IMG_0300.PNG" width="600" alt="garmin">
 
 ## Table of contents
 - [NMEA2000-BM280 environmental sensor](#nmea2000-bm280-environmental-sensor)
