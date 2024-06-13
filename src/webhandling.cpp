@@ -198,9 +198,9 @@ protected:
         _s.replace("{millisecond}", "5000");
         _s += F("function updateData(jsonData) {\n");
         _s += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
-		_s += F("   document.getElementById('TemperaturValue').innerHTML = jsonData.Temperature + \"&deg;\" \n");
-		_s += F("   document.getElementById('DewPointValue').innerHTML = jsonData.DewPoint + \"&deg;\" \n");
-		_s += F("   document.getElementById('HeatIndexValue').innerHTML = jsonData.HeatIndex + \"&deg;\" \n");
+		_s += F("   document.getElementById('TemperaturValue').innerHTML = jsonData.Temperature + \"&deg;C\" \n");
+		_s += F("   document.getElementById('DewPointValue').innerHTML = jsonData.DewPoint + \"&deg;C\" \n");
+		_s += F("   document.getElementById('HeatIndexValue').innerHTML = jsonData.HeatIndex + \"&deg;C\" \n");
 		_s += F("   document.getElementById('PressureValue').innerHTML = jsonData.Pressure + \"mBar\" \n");
 		_s += F("   document.getElementById('HumidityValue').innerHTML = jsonData.Humidity + \"%\" \n");
 
@@ -256,8 +256,8 @@ void handleRoot(AsyncWebServerRequest* request) {
 	content_ += fp_.getHtmlTable().c_str();
 
     content_ += fp_.getHtmlTable().c_str();
-    content_ += fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.").c_str();
-    content_ += fp_.getHtmlTableRowText("Go to <a href = 'webserial'>sensor monitoring</a> page.").c_str();
+    content_ += fp_.getHtmlTableRowText("<a href = 'config'>Configuration</a>").c_str();
+    content_ += fp_.getHtmlTableRowText("<a href = 'webserial'>Sensor monitoring</a> page.").c_str();
     content_ += fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)).c_str();
     content_ += fp_.getHtmlTableEnd().c_str();
 
