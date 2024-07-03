@@ -72,7 +72,17 @@ and for pressure
 - [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
 - [IotWebRoot](https://github.com/minou65/IotWebRoot)
 
-## Required hardware
+## Part list
+| Part | Value | Supplier |
+| --- | --- | --- |
+| D1 | 1N4001 | Reichelt |
+| ESP1 | ESP32DEVKITV1 | [ebay](https://www.ebay.ch/itm/204191675506?var=504772734176) |
+| IC1 | R-78E05-1.0 | Reichelt |
+| IC3 | MCP2562 | Reichelt oder [ebay](https://www.ebay.ch/itm/364610349378) |
+| X1 | AKL 057-03 | Reichelt |
+| X2 | AKL 057-02 | Reichelt |
+| X3 | PSS 254/4G | Reichelt |
+| | BME280 | ebay |
 
 ## Configuration
 ### NMEA 2000 Settings
