@@ -14,15 +14,19 @@
 #include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
 #include <cmath>
+#include <esp_task_wdt.h>
 
 
 #include "common.h"
 #include "webhandling.h"
 #include "version.h"
+#include "neotimer.h"
 
 bool debugMode = false;
 String gStatusSensor;
 char Version[] = VERSION_STR; // Manufacturer's Software version code
+
+#define WDT_TIMEOUT 5
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
@@ -85,6 +89,7 @@ double gheatIndex = 0;
 TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
+Neotimer WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
@@ -266,6 +271,11 @@ void setup() {
     NMEA2000.ExtendTransmitMessages(HumidityTransmitMessages);
         
     NMEA2000.Open();
+
+    esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+    esp_task_wdt_add(NULL); //add current thread to WDT watch
+
+    WDtimer.start();
 }
 
 void SendN2kTemperature(uint8_t instance_) {
@@ -380,6 +390,10 @@ void loop() {
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
         Serial.read();
+    }
+
+    if (WDtimer.repeat()) {
+        esp_task_wdt_reset();
     }
 }
 
