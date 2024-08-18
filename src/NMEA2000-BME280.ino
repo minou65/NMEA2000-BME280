@@ -40,7 +40,8 @@ tN2kSyncScheduler PressureScheduler(false, 500, 520);
 tN2kSyncScheduler DewPointScheduler(false, 500, 530);
 tN2kSyncScheduler HeatIndexScheduler(false, 500, 540);
 
-
+#define WDT_TIMEOUT 5
+Neotimer WDtimer = Neotimer((WDT_TIMEOUT - 2) * 1000);
 
 // Define a function to calculate the dew point
 double dewPoint(double temp_celsius, double humidity) {
@@ -398,8 +399,11 @@ void loop() {
 }
 
 void loop2(void* parameter) {
+    esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
     for (;;) {   // Endless loop
         wifiLoop();
+
+        esp_task_wdt_reset();
 
         vTaskDelay(100);
     }
