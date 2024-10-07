@@ -13,8 +13,6 @@
 #include <IotWebRoot.h>
 #include <IotWebConfAsyncClass.h>
 #include <IotWebConfAsyncUpdateServer.h>
-#include <AsyncJson.h>
-#include <ArduinoJson.h>
 #include <N2kMessagesEnumToStr.h>
 
 #include "common.h"
@@ -195,19 +193,15 @@ void wifiConnected() {
 }
 
 void handleData(AsyncWebServerRequest* request) {
-    AsyncJsonResponse* response = new AsyncJsonResponse();
-    response->addHeader("Server", "ESP Async Web Server");
-    JsonVariant& json_ = response->getRoot();
-
-	json_["rssi"] = WiFi.RSSI();
-	json_["Temperature"] = String(gTemperature, 2);
-	json_["DewPoint"] = String(gdewPoint, 2);
-	json_["HeatIndex"] = String(gheatIndex, 2);
-	json_["Pressure"] = String(gPressure, 2);
-	json_["Humidity"] = String(gHumidity, 2);
-
-	response->setLength();
-	request->send(response);
+	String json_ = "{";
+	json_ += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+	json_ += "\"Temperature\":" + String(gTemperature, 2) + ",";
+	json_ += "\"DewPoint\":" + String(gdewPoint, 2) + ",";
+	json_ += "\"HeatIndex\":" + String(gheatIndex, 2) + ",";
+	json_ += "\"Pressure\":" + String(gPressure, 2) + ",";
+	json_ += "\"Humidity\":" + String(gHumidity, 2);
+	json_ += "}";
+	request->send(200, "application/json", json_);
 }
 
 class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {

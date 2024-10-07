@@ -90,7 +90,6 @@ double gheatIndex = 0;
 TaskHandle_t TaskHandle;
 
 Adafruit_BME280 bme;
-Neotimer WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
