@@ -318,6 +318,8 @@ void convertParams() {
     gN2KSource[DeviceHumidity] = Config.SourceHumidity();
 
     APModeOfflineTime = atoi(APModeOfflineValue);
+
+    ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void configSaved() {
