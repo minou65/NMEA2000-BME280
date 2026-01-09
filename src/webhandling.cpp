@@ -11,17 +11,14 @@
 #error "Unsupported platform"
 #endif
 
-#include <DNSServer.h>
-#include <IotWebConf.h>
-#include <IotWebRoot.h>
-#include <IotWebConfAsyncClass.h>
-#include <IotWebConfAsyncUpdateServer.h>
-#include <N2kMessagesEnumToStr.h>
-
 #include "common.h"
 #include "webhandling.h"
 #include "favicon.h"
 #include "neotimer.h"
+
+#include <DNSServer.h>
+#include <IotWebConfAsyncUpdateServer.h>
+#include <IotWebRoot.h>
 
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
@@ -64,7 +61,7 @@ AsyncWebServerWrapper asyncWebServerWrapper(&server);
 AsyncUpdateServer AsyncUpdater;
 Neotimer APModeTimer = Neotimer();
 
-IotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiInitialApPassword, CONFIG_VERSION);
+AsyncIotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiInitialApPassword, CONFIG_VERSION);
 
 NMEAConfig Config = NMEAConfig();
 
