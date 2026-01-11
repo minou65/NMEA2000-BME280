@@ -14,12 +14,6 @@
 #include <IotWebConfOptionalGroup.h>
 #include <WebSerial.h>
 
-#include <ArduinoOTA.h>
-#include <WiFi.h>
-#include <DNSServer.h>
-#include <IotWebConfAsyncUpdateServer.h>
-#include <IotWebRoot.h>
-
 #define STRING_LEN 64
 #define NUMBER_LEN 5
 
