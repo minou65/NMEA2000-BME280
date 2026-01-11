@@ -9,8 +9,16 @@
 #include "WProgram.h"
 #endif
 
-#include <IotWebConf.h>    
+#include <N2kMessages.h>
+#include <IotWebConfAsync.h>
+#include <IotWebConfOptionalGroup.h>
 #include <WebSerial.h>
+
+#include <ArduinoOTA.h>
+#include <WiFi.h>
+#include <DNSServer.h>
+#include <IotWebConfAsyncUpdateServer.h>
+#include <IotWebRoot.h>
 
 #define STRING_LEN 64
 #define NUMBER_LEN 5
@@ -56,7 +64,7 @@ extern void wifiInit();
 extern void wifiLoop();
 
 static WiFiClient wifiClient;
-extern IotWebConf iotWebConf;
+extern AsyncIotWebConf iotWebConf;
 
 class NMEAConfig : public iotwebconf::ParameterGroup {
 public:
