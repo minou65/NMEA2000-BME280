@@ -16,7 +16,7 @@
 #include <cmath>
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
-
+#include <RebootManager.h>
 
 #include "common.h"
 #include "webhandling.h"
@@ -26,12 +26,6 @@
 bool debugMode = false;
 String gStatusSensor;
 char Version[] = VERSION_STR; // Manufacturer's Software version code
-
-// Configuration for the Watchdog Timer
-esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = 5000, // Timeout in milliseconds
-    .trigger_panic = true // Trigger panic if the Watchdog Timer expires
-};
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
@@ -161,6 +155,10 @@ void setup() {
 
     Serial.printf("Firmware version:%s\n", VERSION);
 
+    RebootManager::begin();
+    Serial.printf("Reboot count: %d\n", RebootManager::getRebootCount());
+    Serial.printf("Last reboot reason: %s\n", RebootManager::getLastRebootReasonText().c_str());
+
     // init wifi
     wifiInit();
 
@@ -274,8 +272,6 @@ void setup() {
         
     NMEA2000.Open();
 
-    // Initialize the Watchdog Timer
-    esp_task_wdt_init(&wdt_config);
     esp_task_wdt_add(NULL); //add current thread to WDT watch
 }
 
