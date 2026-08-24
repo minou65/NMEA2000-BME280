@@ -4,10 +4,8 @@
 
 #define DEBUG_MSG
 
-// use the following Pins
-
-#define ESP32_CAN_TX_PIN GPIO_NUM_5  // Set CAN TX port to D5 
-#define ESP32_CAN_RX_PIN GPIO_NUM_4  // Set CAN RX port to D4
+#include "Config.h"
+#include "common.h"
 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -17,6 +15,7 @@
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
 #include <RebootManager.h>
+#include <EventLogger.h>
 
 #include "common.h"
 #include "webhandling.h"
@@ -25,6 +24,7 @@
 
 bool debugMode = false;
 String gStatusSensor;
+bool gSensorErrorLogged = false;
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
@@ -114,19 +114,23 @@ void OnN2kOpen() {
 }
 
 void CheckN2kSourceAddressChange() {
-    uint8_t SourceAddress = NMEA2000.GetN2kSource();
-
     if (NMEA2000.GetN2kSource(DeviceTemperature) != gN2KSource[DeviceTemperature]) {
+        eventLogger.logf("N2K source temperature changed: %u -> %u",
+            gN2KSource[DeviceTemperature], NMEA2000.GetN2kSource(DeviceTemperature));
         gN2KSource[DeviceTemperature] = NMEA2000.GetN2kSource(DeviceTemperature);
         gSaveParams = true;
     }
 
     if (NMEA2000.GetN2kSource(DevicePressure) != gN2KSource[DevicePressure]) {
+        eventLogger.logf("N2K source pressure changed: %u -> %u",
+            gN2KSource[DevicePressure], NMEA2000.GetN2kSource(DevicePressure));
         gN2KSource[DevicePressure] = NMEA2000.GetN2kSource(DevicePressure);
         gSaveParams = true;
     }
 
     if (NMEA2000.GetN2kSource(DeviceHumidity) != gN2KSource[DeviceHumidity]) {
+        eventLogger.logf("N2K source humidity changed: %u -> %u",
+            gN2KSource[DeviceHumidity], NMEA2000.GetN2kSource(DeviceHumidity));
         gN2KSource[DeviceHumidity] = NMEA2000.GetN2kSource(DeviceHumidity);
         gSaveParams = true;
     }
@@ -153,19 +157,27 @@ void setup() {
         delay(1);
     }
 
-    Serial.printf("Firmware version:%s\n", VERSION);
+    eventLogger.log(F("========================================"));
+    eventLogger.log(F("NMEA2000 BME280 Sensor"));
+    eventLogger.log(F("========================================"));
+    eventLogger.logf("Firmware version: %s", Version);
+    eventLogger.logf("Board: %s", BOARD_NAME);
+    eventLogger.log(F("Sensor type: BME280 (Temperature/Pressure/Humidity)"));
+    eventLogger.log(F("========================================"));
 
     RebootManager::begin();
-    Serial.printf("Reboot count: %d\n", RebootManager::getRebootCount());
-    Serial.printf("Last reboot reason: %s\n", RebootManager::getLastRebootReasonText().c_str());
+    eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
+    eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
 
     // init wifi
     wifiInit();
 
     gStatusSensor = "OK";
-    if (!bme.begin(BME280_ADDRESS_ALTERNATE)) {
+    if (!bme.begin(BME280_I2C_ADDRESS)) {
         gStatusSensor = "NOK";
-		DEBUG_PRINTLN(F("Could not find a valid BME280 sensor, check wiring!"));
+        eventLogger.log(F("ERROR: Could not find a valid BME280 sensor, check wiring"));
+    } else {
+        eventLogger.log(F("BME280 sensor initialized"));
     }
 	
 
@@ -320,9 +332,9 @@ void SendN2kPressure(uint8_t instance_) {
         PressureScheduler.UpdateNextTime();
         if (gStatusSensor != "NOK") {
             Pressure = bme.readPressure() / 100.0f;  // Read and convert to mBar 
-        }
-        else {
-           WebSerial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+        } else if (!gSensorErrorLogged) {
+            eventLogger.log(F("BME280 unavailable: pressure message uses fallback value"));
+            gSensorErrorLogged = true;
         }
         SetN2kPGN130314(N2kMsg, gN2KSID, instance_, N2kps_Atmospheric, mBarToPascal(Pressure));
         NMEA2000.SendMsg(N2kMsg, DevicePressure);

@@ -12,7 +12,6 @@
 #include <N2kMessages.h>
 #include <IotWebConfAsync.h>
 #include <IotWebConfOptionalGroup.h>
-#include <WebSerial.h>
 
 #define STRING_LEN 64
 #define NUMBER_LEN 5

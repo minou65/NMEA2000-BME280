@@ -19,7 +19,8 @@
 #include <DNSServer.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
-
+#include <EventLogger.h>
+#include <WebSerial.h>
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A2"
@@ -54,6 +55,10 @@ void wifiConnected();
 bool gParamsChanged = true;
 bool gSaveParams = false;
 uint8_t APModeOfflineTime = 0;
+
+static int previousConnectionCount = 0;
+static unsigned long lastConnectionChange = 0;
+static bool waitingToSendHistory = false;
 
 DNSServer dnsServer;
 AsyncWebServer server(80);
@@ -106,11 +111,6 @@ iotwebconf::NumberParameter APModeOfflineParam = iotwebconf::NumberParameter("AP
 
 
 void wifiInit() {
-    Serial.begin(115200);
-    Serial.println();
-    Serial.println("starting up...");
-
-
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
     iotWebConf.setHtmlFormatProvider(&customHtmlFormatProvider);
@@ -167,6 +167,10 @@ void wifiInit() {
 
 	WebSerial.begin(&server, "/webserial");
 
+    eventLogger.setLiveCallback([](const EventLogger::Event& event_) {
+        WebSerial.println(eventLogger.formatEvent(event_));
+    });
+
     if (APModeOfflineTime > 0) {
         APModeTimer.start(APModeOfflineTime * 60 * 1000);
     }
@@ -175,12 +179,37 @@ void wifiInit() {
 }
 
 void wifiLoop() {
-    // -- doLoop should be called as frequently as possible.
     iotWebConf.doLoop();
     ArduinoOTA.handle();
+    WebSerial.loop();
+
+    int currentConnectionCount = WebSerial.getConnectionCount();
+    if (currentConnectionCount != previousConnectionCount) {
+        if (currentConnectionCount > 0) {
+            waitingToSendHistory = true;
+            lastConnectionChange = millis();
+        }
+        previousConnectionCount = currentConnectionCount;
+    }
+
+    if (waitingToSendHistory && currentConnectionCount > 0 && (millis() - lastConnectionChange) >= 500) {
+        waitingToSendHistory = false;
+
+        WebSerial.println();
+        WebSerial.println("=== WebSerial ===");
+        WebSerial.println("=== Event History ===");
+
+        auto events_ = eventLogger.getEvents();
+        for (const auto& event_ : events_) {
+            WebSerial.println(eventLogger.formatEvent(event_));
+        }
+
+        WebSerial.println("=== Live Events ===");
+        WebSerial.println();
+    }
 
     if (gSaveParams) {
-        Serial.println(F("Parameters are changed,save them"));
+        eventLogger.log(F("Parameters changed, saving config"));
 
         Config.SetSource(gN2KSource[DeviceTemperature]);
         Config.SetSourceHumidity(gN2KSource[DeviceHumidity]);
@@ -191,13 +220,13 @@ void wifiLoop() {
     }
 
     if (APModeTimer.done()) {
-        Serial.println(F("AP mode offline time reached"));
+        eventLogger.log(F("AP mode offline time reached"));
         iotWebConf.goOffLine();
         APModeTimer.stop();
     }
 
     if (AsyncUpdater.isFinished()) {
-        Serial.println(F("Firmware update finished"));
+        eventLogger.log(F("Firmware update finished"));
         delay(1000);
         ESP.restart();
     }
@@ -336,3 +365,4 @@ void configSaved() {
     convertParams();
     gParamsChanged = true;
 }
+
