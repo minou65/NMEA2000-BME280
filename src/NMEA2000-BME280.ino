@@ -16,6 +16,9 @@
 #include <esp_mac.h>
 #include <RebootManager.h>
 #include <EventLogger.h>
+#include <time.h>
+#include <sys/time.h>
+#include <Preferences.h>
 
 #include "common.h"
 #include "webhandling.h"
@@ -26,6 +29,20 @@ bool debugMode = false;
 String gStatusSensor;
 bool gSensorErrorLogged = false;
 char Version[] = VERSION_STR; // Manufacturer's Software version code
+
+double gTemperature = 0;
+double gHumidity = 0;
+double gPressure = 0;
+double gdewPoint = 0;
+double gheatIndex = 0;
+
+// Task handle (Core 0 on ESP32)
+TaskHandle_t TaskHandle;
+
+Adafruit_BME280 bme;
+
+bool TimeSet = false;
+unsigned long LastTimeUpdate = 0;
 
 uint8_t gN2KSource[] = { 22, 23, 24 };
 uint8_t gN2KInstance = 1;
@@ -38,6 +55,7 @@ tN2kSyncScheduler HumidityScheduler(false, 500, 510);
 tN2kSyncScheduler PressureScheduler(false, 500, 520);
 tN2kSyncScheduler DewPointScheduler(false, 500, 530);
 tN2kSyncScheduler HeatIndexScheduler(false, 500, 540);
+
 
 // Define a function to calculate the dew point
 double dewPoint(double temp_celsius, double humidity) {
@@ -75,17 +93,16 @@ double heatIndexCelsius(double temp_celsius, double humidity) {
     return heat_celsius;
 }
 
+typedef struct {
+    unsigned long PGN;
+    void (*Handler)(const tN2kMsg& N2kMsg);
+} tNMEA2000Handler;
 
-double gTemperature = 0;
-double gHumidity = 0;
-double gPressure = 0;
-double gdewPoint = 0;
-double gheatIndex = 0;
-
-// Task handle (Core 0 on ESP32)
-TaskHandle_t TaskHandle;
-
-Adafruit_BME280 bme;
+tNMEA2000Handler NMEA2000Handlers[] = {
+    {126992L, ParseN2kSystemTime},
+    {129029L, ParseN2kGNSS},
+    {0,0}
+};
 
 // List here messages your device will transmit.
 const unsigned long TemperaturTransmitMessages[] PROGMEM = {
@@ -113,26 +130,43 @@ void OnN2kOpen() {
     HeatIndexScheduler.UpdateNextTime();
 }
 
+// Nach den globalen Variablen (nach Zeile 56) hinzufügen:
+
 void CheckN2kSourceAddressChange() {
-    if (NMEA2000.GetN2kSource(DeviceTemperature) != gN2KSource[DeviceTemperature]) {
-        eventLogger.logf("N2K source temperature changed: %u -> %u",
-            gN2KSource[DeviceTemperature], NMEA2000.GetN2kSource(DeviceTemperature));
-        gN2KSource[DeviceTemperature] = NMEA2000.GetN2kSource(DeviceTemperature);
-        gSaveParams = true;
+    if (!NMEA2000.ReadResetAddressChanged()) {
+        return;
     }
 
-    if (NMEA2000.GetN2kSource(DevicePressure) != gN2KSource[DevicePressure]) {
-        eventLogger.logf("N2K source pressure changed: %u -> %u",
-            gN2KSource[DevicePressure], NMEA2000.GetN2kSource(DevicePressure));
-        gN2KSource[DevicePressure] = NMEA2000.GetN2kSource(DevicePressure);
-        gSaveParams = true;
+    bool changed_ = false;
+
+    // Check each of the 3 devices for address changes
+    for (size_t i_ = 0; i_ < 3; ++i_) {
+        uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
+        if (gN2KSource[i_] != currentSource_) {
+            eventLogger.logf("Device %u address changed from %u to %u",
+                (unsigned)i_, gN2KSource[i_], currentSource_);
+            gN2KSource[i_] = currentSource_;
+            changed_ = true;
+        }
     }
 
-    if (NMEA2000.GetN2kSource(DeviceHumidity) != gN2KSource[DeviceHumidity]) {
-        eventLogger.logf("N2K source humidity changed: %u -> %u",
-            gN2KSource[DeviceHumidity], NMEA2000.GetN2kSource(DeviceHumidity));
-        gN2KSource[DeviceHumidity] = NMEA2000.GetN2kSource(DeviceHumidity);
-        gSaveParams = true;
+    // Save all 3 addresses to Preferences
+    if (changed_) {
+        Preferences prefs_;
+        prefs_.begin("n2k", false);
+
+        for (size_t i_ = 0; i_ < 3; ++i_) {
+            char key_[16];
+            snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
+            prefs_.putUChar(key_, gN2KSource[i_]);
+        }
+
+        eventLogger.log("Saved N2K source addresses to Preferences:");
+        for (size_t i_ = 0; i_ < 3; ++i_) {
+            eventLogger.logf("  N2KSource%u = %u", (unsigned)i_, gN2KSource[i_]);
+        }
+
+        prefs_.end();
     }
 }
 
@@ -169,8 +203,42 @@ void setup() {
     eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
     eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
 
-    // init wifi
     wifiInit();
+
+    Preferences prefs_;
+    prefs_.begin("n2k", false);
+
+    // MAC-basierte Base-Adresse (wie im DS1820-Projekt)
+    uint8_t mac_[6];
+    esp_efuse_mac_get_default(mac_);
+    uint16_t macSum_ = (uint16_t)mac_[3] + (uint16_t)mac_[4] + (uint16_t)mac_[5];
+    uint8_t macBased_ = macSum_ % 20;
+    uint8_t baseAddress_ = 20 + (macBased_ * 5);
+
+    for (size_t i_ = 0; i_ < 3; ++i_) {
+        char key_[16];
+        snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
+
+        uint8_t defaultAddr_ = baseAddress_ + i_;
+        if (defaultAddr_ > 251) defaultAddr_ = 251;
+
+        uint8_t val_ = prefs_.getUChar(key_, 255);
+
+        if (val_ == 255) {
+            // First boot
+            gN2KSource[i_] = defaultAddr_;
+            prefs_.putUChar(key_, defaultAddr_);
+            eventLogger.logf("First boot: Set N2KSource%u = %u", (unsigned)i_, defaultAddr_);
+        }
+        else {
+            gN2KSource[i_] = val_;
+        }
+    }
+
+    prefs_.end();
+
+    eventLogger.logf("Using N2K addresses: %u (Temp), %u (Pressure), %u (Humidity)",
+        gN2KSource[0], gN2KSource[1], gN2KSource[2]);
 
     gStatusSensor = "OK";
     if (!bme.begin(BME280_I2C_ADDRESS)) {
@@ -270,7 +338,7 @@ void setup() {
     NMEA2000.EnableForward(false); 
 
     // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
-    NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode);
 
     NMEA2000.SetN2kSource(gN2KSource[DeviceTemperature], DeviceTemperature);
     NMEA2000.SetN2kSource(gN2KSource[DevicePressure], DevicePressure);
@@ -384,6 +452,7 @@ void SendN2KDewPointTemperature(double Temperatur_, double Humidity_, uint8_t in
 }
 
 void loop() {
+    wifiLoop();
     SendN2kTemperature(gN2KInstance);
     SendN2kHumidity(gN2KInstance + 1);
     SendN2kPressure(gN2KInstance + 2);
@@ -407,10 +476,91 @@ void loop() {
 void loop2(void* parameter) {
     esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
     for (;;) {   // Endless loop
-        wifiLoop();
+        
 
         esp_task_wdt_reset();
 
-        vTaskDelay(100);
+        vTaskDelay(1000);
+    }
+}
+
+void SetSystemTime(uint16_t DaysSince1970, double SecondsSinceMidnight) {
+    if (DaysSince1970 == 0xFFFF || SecondsSinceMidnight > 86400) {
+        return;
+    }
+
+    if (TimeSet && (millis() - LastTimeUpdate < 600000)) {
+        return;
+    }
+
+    time_t timestamp = (DaysSince1970 * 86400UL) + (time_t)SecondsSinceMidnight;
+
+    struct timeval tv;
+    tv.tv_sec = timestamp;
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
+
+    TimeSet = true;
+    LastTimeUpdate = millis();
+
+    char timeStr[64];
+    struct tm* timeinfo = localtime(&timestamp);
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
+    eventLogger.logf("System time set from NMEA2000: %s UTC", timeStr);
+}
+
+void ParseN2kSystemTime(const tN2kMsg& N2kMsg) {
+    unsigned char SID;
+    uint16_t SystemDate;
+    double SystemTime;
+    tN2kTimeSource TimeSource;
+
+    if (ParseN2kPGN126992(N2kMsg, SID, SystemDate, SystemTime, TimeSource)) {
+        if (TimeSource == N2ktimes_GPS || TimeSource == N2ktimes_GLONASS) {
+            SetSystemTime(SystemDate, SystemTime);
+
+            if (debugMode) {
+                eventLogger.logf("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d",
+                    SystemDate, SystemTime, TimeSource);
+            }
+        }
+    }
+}
+
+void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
+    unsigned char SID;
+    uint16_t DaysSince1970;
+    double SecondsSinceMidnight;
+    double Latitude, Longitude, Altitude;
+    tN2kGNSStype GNSStype;
+    tN2kGNSSmethod GNSSmethod;
+    unsigned char nSatellites;
+    double HDOP, PDOP, GeoidalSeparation;
+    unsigned char nReferenceStations;
+    tN2kGNSStype ReferenceStationType;
+    uint16_t ReferenceSationID;
+    double AgeOfCorrection;
+
+    if (ParseN2kPGN129029(N2kMsg, SID, DaysSince1970, SecondsSinceMidnight,
+        Latitude, Longitude, Altitude, GNSStype, GNSSmethod,
+        nSatellites, HDOP, PDOP, GeoidalSeparation,
+        nReferenceStations, ReferenceStationType,
+        ReferenceSationID, AgeOfCorrection)) {
+
+        SetSystemTime(DaysSince1970, SecondsSinceMidnight);
+
+        if (debugMode) {
+            eventLogger.logf("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u",
+                DaysSince1970, SecondsSinceMidnight, nSatellites);
+        }
+    }
+}
+
+void handleN2kMessages(const tN2kMsg& N2kMsg_) {
+    for (uint8_t i_ = 0; NMEA2000Handlers[i_].PGN != 0; i_++) {
+        if (N2kMsg_.PGN == NMEA2000Handlers[i_].PGN) {
+            NMEA2000Handlers[i_].Handler(N2kMsg_);
+            break;
+        }
     }
 }

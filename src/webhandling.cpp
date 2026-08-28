@@ -11,6 +11,7 @@
 #error "Unsupported platform"
 #endif
 
+#include "Config.h"
 #include "common.h"
 #include "webhandling.h"
 #include "favicon.h"
@@ -34,11 +35,8 @@
 //      when connected to the Wifi it will turn off (kept HIGH).
 #define STATUS_PIN LED_BUILTIN
 
-#if ESP32 
 #define ON_LEVEL HIGH
-#else
-#define ON_LEVEL LOW
-#endif
+
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA2000-BME280";
@@ -46,6 +44,7 @@ const char thingName[] = "NMEA2000-BME280";
 // -- Method declarations.
 void handleData(AsyncWebServerRequest* request);
 void handleRoot(AsyncWebServerRequest* request);
+void handleWebSerialCommand(uint8_t* data, size_t len);
 void convertParams();
 
 // -- Callback methods.
@@ -55,10 +54,6 @@ void wifiConnected();
 bool gParamsChanged = true;
 bool gSaveParams = false;
 uint8_t APModeOfflineTime = 0;
-
-static int previousConnectionCount = 0;
-static unsigned long lastConnectionChange = 0;
-static bool waitingToSendHistory = false;
 
 DNSServer dnsServer;
 AsyncWebServer server(80);
@@ -141,8 +136,8 @@ void wifiInit() {
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
 
     server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
-        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
-        iotWebConf.handleConfig(&asyncWebRequestWrapper);
+        auto* asyncWebRequestWrapper_ = new AsyncWebRequestWrapper(request);
+        iotWebConf.handleConfig(asyncWebRequestWrapper_);
         }
     );
 
@@ -166,6 +161,7 @@ void wifiInit() {
     );
 
 	WebSerial.begin(&server, "/webserial");
+	WebSerial.onMessage(handleWebSerialCommand);
 
     eventLogger.setLiveCallback([](const EventLogger::Event& event_) {
         WebSerial.println(eventLogger.formatEvent(event_));
@@ -183,7 +179,13 @@ void wifiLoop() {
     ArduinoOTA.handle();
     WebSerial.loop();
 
+    // WebSerial History Handling
     int currentConnectionCount = WebSerial.getConnectionCount();
+    
+    static int previousConnectionCount = 0;
+    static unsigned long lastConnectionChange = 0;
+    static bool waitingToSendHistory = false;
+
     if (currentConnectionCount != previousConnectionCount) {
         if (currentConnectionCount > 0) {
             waitingToSendHistory = true;
@@ -197,13 +199,17 @@ void wifiLoop() {
 
         WebSerial.println();
         WebSerial.println("=== WebSerial ===");
-        WebSerial.println("=== Event History ===");
+        WebSerial.println("Type 'help' for available commands");
+        WebSerial.println();
 
         auto events_ = eventLogger.getEvents();
-        for (const auto& event_ : events_) {
-            WebSerial.println(eventLogger.formatEvent(event_));
+        if (!events_.empty()) {
+            WebSerial.println("=== Event History (" + String(events_.size()) + " events) ===");
+            for (const auto& event_ : events_) {
+                WebSerial.println(eventLogger.formatEvent(event_));
+            }
+            WebSerial.println();
         }
-
         WebSerial.println("=== Live Events ===");
         WebSerial.println();
     }
@@ -364,5 +370,69 @@ void convertParams() {
 void configSaved() {
     convertParams();
     gParamsChanged = true;
+}
+
+void handleWebSerialCommand(uint8_t* data, size_t len) {
+    String command = "";
+    for (size_t i = 0; i < len; i++) {
+        command += (char)data[i];
+    }
+    command.trim();
+    command.toLowerCase();
+
+    if (command == "help") {
+        WebSerial.println();
+        WebSerial.println("=== Available Commands ===");
+        WebSerial.println("help     - Show this help");
+        WebSerial.println("status   - Show system status");
+        WebSerial.println("restart  - Restart device");
+        WebSerial.println("clear    - Clear event log");
+        WebSerial.println("wifi     - Show WiFi info");
+        WebSerial.println("sensor   - Show sensor values");
+        WebSerial.println();
+    }
+    else if (command == "status") {
+        WebSerial.println();
+        WebSerial.println("=== System Status ===");
+        WebSerial.println("Firmware: " + String(Version));
+        WebSerial.println("Board: " + String(BOARD_NAME));
+        WebSerial.println("Uptime: " + String(millis() / 1000) + "s");
+        WebSerial.println("Free Heap: " + String(ESP.getFreeHeap()) + " bytes");
+        WebSerial.println("Sensor Status: " + gStatusSensor);
+        WebSerial.println();
+    }
+    else if (command == "restart") {
+        WebSerial.println("Restarting device...");
+        delay(1000);
+        ESP.restart();
+    }
+    else if (command == "clear") {
+        eventLogger.clear();
+        WebSerial.println("Event log cleared");
+    }
+    else if (command == "wifi") {
+        WebSerial.println();
+        WebSerial.println("=== WiFi Info ===");
+        WebSerial.println("SSID: " + WiFi.SSID());
+        WebSerial.println("IP: " + WiFi.localIP().toString());
+        WebSerial.println("MAC: " + WiFi.macAddress());
+        WebSerial.println("RSSI: " + String(WiFi.RSSI()) + " dBm");
+        WebSerial.println();
+    }
+    else if (command == "sensor") {
+        WebSerial.println();
+        WebSerial.println("=== Sensor Values ===");
+        WebSerial.println("Temperature: " + String(gTemperature, 2) + " °C");
+        WebSerial.println("Humidity: " + String(gHumidity, 2) + " %");
+        WebSerial.println("Pressure: " + String(gPressure, 2) + " mBar");
+        WebSerial.println("Dew Point: " + String(gdewPoint, 2) + " °C");
+        WebSerial.println("Heat Index: " + String(gheatIndex, 2) + " °C");
+        WebSerial.println("Status: " + gStatusSensor);
+        WebSerial.println();
+    }
+    else {
+        WebSerial.println("Unknown command: " + command);
+        WebSerial.println("Type 'help' for available commands");
+    }
 }
 

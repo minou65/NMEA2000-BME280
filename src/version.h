@@ -3,8 +3,8 @@
 #define VERSION_PATCH 2
 
 // Automatically generated build version. Do not modify.
-#define VERSION_BUILD 31
-#define VERSION_DATE "2026-06-01"
-#define VERSION_TIME "06:42:06"
-#define VERSION "1.3.2.31"
-#define VERSION_STR "1.3.2.31 (2026-06-01 06:42:06)"
+#define VERSION_BUILD 43
+#define VERSION_DATE "2026-08-27"
+#define VERSION_TIME "12:55:28"
+#define VERSION "1.3.2.43"
+#define VERSION_STR "1.3.2.43 (2026-08-27 12:55:28)"
