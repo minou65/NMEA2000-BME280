@@ -1,7 +1,6 @@
 // #define DEBUG_WIFI(m) SERIAL_DBG.print(m)
 
 #include <Arduino.h>
-#include <ArduinoOTA.h>
 #include <WiFi.h>
 
 #include "Config.h"
@@ -186,7 +185,6 @@ void wifiInit() {
 
 void wifiLoop() {
     iotWebConf.doLoop();
-    ArduinoOTA.handle();
 
     if (gSaveParams) {
         Config.SetSource(gN2KSource[DeviceTemperature]);
@@ -212,8 +210,6 @@ void wifiLoop() {
 }
 
 void wifiConnected() {
-    ArduinoOTA.begin();
-
     WiFi.setSleep(false);
     LOG_INFO("WiFi modem sleep disabled");  
 }
@@ -299,8 +295,8 @@ void handleRoot(AsyncWebServerRequest* request) {
 	content_ += fp_.getHtmlTable().c_str();
 
     content_ += fp_.getHtmlTable().c_str();
-    content_ += fp_.getHtmlTableRowText("<a href = 'config'>Configuration</a>").c_str();
-    content_ += fp_.getHtmlTableRowText("<a href = 'webserial'>Sensor monitoring</a> page.").c_str();
+    content_ += fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.").c_str();
+    content_ += fp_.getHtmlTableRowText("Go to <a href = 'events'>event log</a> to view the event history.").c_str();
     content_ += fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)).c_str();
     content_ += fp_.getHtmlTableEnd().c_str();
 
@@ -339,8 +335,6 @@ void convertParams() {
     gN2KSource[DeviceHumidity] = Config.SourceHumidity();
 
     APModeOfflineTime = atoi(APModeOfflineValue);
-
-    ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void configSaved() {
