@@ -400,9 +400,27 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-*.s#1
-/.vscode/settings.json
-sch/Thumbs.db
-/src/NMEA2000-BME280.ino.nodemcu-32s.bin
-/src/NMEA2000-BME280.ino.nodemcu-32s.bin
-src/board.txt
+.vscode/settings.json
+/img/Thumbs.db
+/src/Powerbox.ino.nodemcu-32s.bin
+doc/LED-Time-Control-TC420.pdf
+icon/icons8-aquarium-office-l-favicons/web/Thumbs.db
+
+
+# PlatformIO
+.pio/
+.piolibdeps/
+.clangd/
+
+# Lokale Python-Umgebungen (falls später verwendet)
+.venv/
+venv/
+
+# PlatformIO Coredumps
+coredump.*
+
+# Lokale Build-Artefakte
+*.elf
+*.map
+*.bin
+*.hex
