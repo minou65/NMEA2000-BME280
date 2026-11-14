@@ -2,26 +2,18 @@
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
-#if defined(ESP32)
 #include <WiFi.h>
-// #include <esp_wifi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#else
-#error "Unsupported platform"
-#endif
 
 #include "Config.h"
 #include "common.h"
 #include "webhandling.h"
 #include "favicon.h"
-#include "neotimer.h"
+#include <neotimer.h>
 
 #include <DNSServer.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
 #include <EventLogger.h>
-#include <WebSerial.h>
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A2"
@@ -44,7 +36,7 @@ const char thingName[] = "NMEA2000-BME280";
 // -- Method declarations.
 void handleData(AsyncWebServerRequest* request);
 void handleRoot(AsyncWebServerRequest* request);
-void handleWebSerialCommand(uint8_t* data, size_t len);
+void handleWebCommand(const String& command);
 void convertParams();
 
 // -- Callback methods.
@@ -119,7 +111,18 @@ void wifiInit() {
     iotWebConf.addSystemParameter(&APModeOfflineParam);
     
     iotWebConf.setupUpdateServer(
-        [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath); },
+        [](const char* updatePath) {
+            AsyncUpdater.onBegin([](const String& message) {
+                LOG_INFO("%s", message.c_str());
+                });
+            AsyncUpdater.onEnd([](const String& message) { LOG_OK("%s", message.c_str()); });
+            AsyncUpdater.OnError([](const String& message) {
+                LOG_ERROR("%s", message.c_str());
+                });
+            AsyncUpdater.onProgress([](const String& message) { LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.onLog([](const String& message) { WEB_LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.setup(&server, updatePath);
+        },
         [](const char* userName, char* password) { AsyncUpdater.updateCredentials(userName, password); });
 
     iotWebConf.setConfigSavedCallback(&configSaved);
@@ -160,79 +163,49 @@ void wifiInit() {
         }
     );
 
-	WebSerial.begin(&server, "/webserial");
-	WebSerial.onMessage(handleWebSerialCommand);
+  // EventLogger Web initialisieren
+    bool webOk_ = eventLogger.beginWeb(&server, "/events");
+    if (!webOk_) {
+        eventLogger.log("EventLogger.beginWeb failed", EventLogger::Status::ERROR, 1);
+    }
 
-    eventLogger.setLiveCallback([](const EventLogger::Event& event_) {
-        WebSerial.println(eventLogger.formatEvent(event_));
-    });
+    eventLogger.setCommandCallback([](const String& command_) {
+        handleWebCommand(command_);
+        });
+
+    server.onNotFound([](AsyncWebServerRequest* request) {
+        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
+        iotWebConf.handleNotFound(&asyncWebRequestWrapper);
+        }
+    );    
 
     if (APModeOfflineTime > 0) {
         APModeTimer.start(APModeOfflineTime * 60 * 1000);
     }
-
-    Serial.println("Ready.");
 }
 
 void wifiLoop() {
     iotWebConf.doLoop();
     ArduinoOTA.handle();
-    WebSerial.loop();
-
-    // WebSerial History Handling
-    int currentConnectionCount = WebSerial.getConnectionCount();
-    
-    static int previousConnectionCount = 0;
-    static unsigned long lastConnectionChange = 0;
-    static bool waitingToSendHistory = false;
-
-    if (currentConnectionCount != previousConnectionCount) {
-        if (currentConnectionCount > 0) {
-            waitingToSendHistory = true;
-            lastConnectionChange = millis();
-        }
-        previousConnectionCount = currentConnectionCount;
-    }
-
-    if (waitingToSendHistory && currentConnectionCount > 0 && (millis() - lastConnectionChange) >= 500) {
-        waitingToSendHistory = false;
-
-        WebSerial.println();
-        WebSerial.println("=== WebSerial ===");
-        WebSerial.println("Type 'help' for available commands");
-        WebSerial.println();
-
-        auto events_ = eventLogger.getEvents();
-        if (!events_.empty()) {
-            WebSerial.println("=== Event History (" + String(events_.size()) + " events) ===");
-            for (const auto& event_ : events_) {
-                WebSerial.println(eventLogger.formatEvent(event_));
-            }
-            WebSerial.println();
-        }
-        WebSerial.println("=== Live Events ===");
-        WebSerial.println();
-    }
 
     if (gSaveParams) {
-        eventLogger.log(F("Parameters changed, saving config"));
-
         Config.SetSource(gN2KSource[DeviceTemperature]);
         Config.SetSourceHumidity(gN2KSource[DeviceHumidity]);
         Config.SetSourcePressure(gN2KSource[DevicePressure]);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
+        LOG_OK("Config saved");
     }
 
     if (APModeTimer.done()) {
-        eventLogger.log(F("AP mode offline time reached"));
+        LOG_INFO("AP mode offline time reached");
         iotWebConf.goOffLine();
         APModeTimer.stop();
     }
 
     if (AsyncUpdater.isFinished()) {
-        eventLogger.log(F("Firmware update finished"));
+        LOG_OK("Firmware update finished");
         delay(1000);
         ESP.restart();
     }
@@ -240,6 +213,9 @@ void wifiLoop() {
 
 void wifiConnected() {
     ArduinoOTA.begin();
+
+    WiFi.setSleep(false);
+    LOG_INFO("WiFi modem sleep disabled");  
 }
 
 void handleData(AsyncWebServerRequest* request) {
@@ -372,67 +348,66 @@ void configSaved() {
     gParamsChanged = true;
 }
 
-void handleWebSerialCommand(uint8_t* data, size_t len) {
-    String command = "";
-    for (size_t i = 0; i < len; i++) {
-        command += (char)data[i];
-    }
-    command.trim();
-    command.toLowerCase();
+void handleWebCommand(const String& command) {
+    String cmd_ = command;
+    cmd_.trim();
+    cmd_.toLowerCase();
 
-    if (command == "help") {
-        WebSerial.println();
-        WebSerial.println("=== Available Commands ===");
-        WebSerial.println("help     - Show this help");
-        WebSerial.println("status   - Show system status");
-        WebSerial.println("restart  - Restart device");
-        WebSerial.println("clear    - Clear event log");
-        WebSerial.println("wifi     - Show WiFi info");
-        WebSerial.println("sensor   - Show sensor values");
-        WebSerial.println();
+    if (cmd_ == "help") {
+        WEB_LOG_INFO_AT(0, "=== Available Commands ===");
+        WEB_LOG_INFO_AT(1, "help     - Show this help");
+        WEB_LOG_INFO_AT(1, "status   - Show system status");
+        WEB_LOG_INFO_AT(1, "restart  - Restart device");
+        WEB_LOG_INFO_AT(1, "clear    - Clear event log");
+        WEB_LOG_INFO_AT(1, "wifi     - Show WiFi info");
+        WEB_LOG_INFO_AT(1, "sensor   - Show sensor values");
+        return;
     }
-    else if (command == "status") {
-        WebSerial.println();
-        WebSerial.println("=== System Status ===");
-        WebSerial.println("Firmware: " + String(Version));
-        WebSerial.println("Board: " + String(BOARD_NAME));
-        WebSerial.println("Uptime: " + String(millis() / 1000) + "s");
-        WebSerial.println("Free Heap: " + String(ESP.getFreeHeap()) + " bytes");
-        WebSerial.println("Sensor Status: " + gStatusSensor);
-        WebSerial.println();
+
+    if (cmd_ == "status") {
+        WEB_LOG_INFO_AT(0, "=== System Status ===");
+        WEB_LOG_INFO_AT(1, "Firmware: %s", Version);
+        WEB_LOG_INFO_AT(1, "Board: %s", BOARD_NAME);
+        WEB_LOG_INFO_AT(1, "Uptime: %lu s", millis() / 1000);
+        WEB_LOG_INFO_AT(1, "Free Heap: %u bytes", ESP.getFreeHeap());
+        WEB_LOG_INFO_AT(1, "Sensor Status: %s", gStatusSensor.c_str());
+        return;
     }
-    else if (command == "restart") {
-        WebSerial.println("Restarting device...");
+
+    if (cmd_ == "restart") {
+        WEB_LOG_INFO_AT(0, "Restarting device...");
         delay(1000);
         ESP.restart();
+        return;
     }
-    else if (command == "clear") {
+
+    if (cmd_ == "clear") {
         eventLogger.clear();
-        WebSerial.println("Event log cleared");
+        WEB_LOG_INFO_AT(0, "Event log cleared");
+        return;
     }
-    else if (command == "wifi") {
-        WebSerial.println();
-        WebSerial.println("=== WiFi Info ===");
-        WebSerial.println("SSID: " + WiFi.SSID());
-        WebSerial.println("IP: " + WiFi.localIP().toString());
-        WebSerial.println("MAC: " + WiFi.macAddress());
-        WebSerial.println("RSSI: " + String(WiFi.RSSI()) + " dBm");
-        WebSerial.println();
+
+    if (cmd_ == "wifi") {
+        WEB_LOG_INFO_AT(0, "=== WiFi Info ===");
+        WEB_LOG_INFO_AT(1, "SSID: %s", WiFi.SSID().c_str());
+        WEB_LOG_INFO_AT(1, "IP: %s", WiFi.localIP().toString().c_str());
+        WEB_LOG_INFO_AT(1, "MAC: %s", WiFi.macAddress().c_str());
+        WEB_LOG_INFO_AT(1, "RSSI: %d dBm", WiFi.RSSI());
+        return;
     }
-    else if (command == "sensor") {
-        WebSerial.println();
-        WebSerial.println("=== Sensor Values ===");
-        WebSerial.println("Temperature: " + String(gTemperature, 2) + " °C");
-        WebSerial.println("Humidity: " + String(gHumidity, 2) + " %");
-        WebSerial.println("Pressure: " + String(gPressure, 2) + " mBar");
-        WebSerial.println("Dew Point: " + String(gdewPoint, 2) + " °C");
-        WebSerial.println("Heat Index: " + String(gheatIndex, 2) + " °C");
-        WebSerial.println("Status: " + gStatusSensor);
-        WebSerial.println();
+
+    if (cmd_ == "sensor") {
+        WEB_LOG_INFO_AT(0, "=== Sensor Values ===");
+        WEB_LOG_INFO_AT(1, "Temperature: %.2f C", gTemperature);
+        WEB_LOG_INFO_AT(1, "Humidity: %.2f %%", gHumidity);
+        WEB_LOG_INFO_AT(1, "Pressure: %.2f mBar", gPressure);
+        WEB_LOG_INFO_AT(1, "Dew Point: %.2f C", gdewPoint);
+        WEB_LOG_INFO_AT(1, "Heat Index: %.2f C", gheatIndex);
+        WEB_LOG_INFO_AT(1, "Status: %s", gStatusSensor.c_str());
+        return;
     }
-    else {
-        WebSerial.println("Unknown command: " + command);
-        WebSerial.println("Type 'help' for available commands");
-    }
+
+    WEB_LOG_INFO_AT(0, "Unknown command: %s", cmd_.c_str());
+    WEB_LOG_INFO_AT(0, "Type 'help' for available commands");
 }
 

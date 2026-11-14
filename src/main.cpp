@@ -6,6 +6,7 @@
 
 #include "Config.h"
 #include "common.h"
+#include "webhandling.h"
 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -16,14 +17,15 @@
 #include <esp_mac.h>
 #include <RebootManager.h>
 #include <EventLogger.h>
-#include <time.h>
-#include <sys/time.h>
 #include <Preferences.h>
 
-#include "common.h"
-#include "webhandling.h"
-#include "version.h"
-#include "neotimer.h"
+#include <build_version.h>
+#include <neotimer.h>
+
+// Forward declarations
+void ParseN2kSystemTime(const tN2kMsg& N2kMsg);
+void ParseN2kGNSS(const tN2kMsg& N2kMsg);
+void loop2(void* parameter);
 
 bool debugMode = false;
 String gStatusSensor;
@@ -130,7 +132,7 @@ void OnN2kOpen() {
     HeatIndexScheduler.UpdateNextTime();
 }
 
-// Nach den globalen Variablen (nach Zeile 56) hinzufügen:
+// Nach den globalen Variablen (nach Zeile 56) hinzufï¿½gen:
 
 void CheckN2kSourceAddressChange() {
     if (!NMEA2000.ReadResetAddressChanged()) {
@@ -143,7 +145,7 @@ void CheckN2kSourceAddressChange() {
     for (size_t i_ = 0; i_ < 3; ++i_) {
         uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
         if (gN2KSource[i_] != currentSource_) {
-            eventLogger.logf("Device %u address changed from %u to %u",
+            LOG_DEBUG("Device %u address changed from %u to %u",
                 (unsigned)i_, gN2KSource[i_], currentSource_);
             gN2KSource[i_] = currentSource_;
             changed_ = true;
@@ -161,9 +163,9 @@ void CheckN2kSourceAddressChange() {
             prefs_.putUChar(key_, gN2KSource[i_]);
         }
 
-        eventLogger.log("Saved N2K source addresses to Preferences:");
+        LOG_DEBUG("Saved N2K source addresses to Preferences:");
         for (size_t i_ = 0; i_ < 3; ++i_) {
-            eventLogger.logf("  N2KSource%u = %u", (unsigned)i_, gN2KSource[i_]);
+            LOG_DEBUG_AT(1, "N2KSource%u = %u", (unsigned)i_, gN2KSource[i_]);
         }
 
         prefs_.end();
@@ -191,19 +193,33 @@ void setup() {
         delay(1);
     }
 
-    eventLogger.log(F("========================================"));
-    eventLogger.log(F("NMEA2000 BME280 Sensor"));
-    eventLogger.log(F("========================================"));
-    eventLogger.logf("Firmware version: %s", Version);
-    eventLogger.logf("Board: %s", BOARD_NAME);
-    eventLogger.log(F("Sensor type: BME280 (Temperature/Pressure/Humidity)"));
-    eventLogger.log(F("========================================"));
+    LOG_INFO_AT(0, "========================================");
+    LOG_INFO_AT(0, "NMEA2000 BME280 Sensor");
+    LOG_INFO_AT(0, "========================================");
+    LOG_INFO_AT(1, "Firmware version: %s", Version);
+    LOG_INFO_AT(1, "Board: %s", BOARD_NAME);
+    LOG_INFO_AT(1, "Sensor type: BME280 (Temperature/Pressure/Humidity)");
+    LOG_INFO_AT(0, "========================================");
 
     RebootManager::begin();
-    eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
-    eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
+    LOG_INFO_AT(1, "Reboot count: %d", RebootManager::getRebootCount());
+    LOG_INFO_AT(1, "Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
 
     wifiInit();
+    LOG_OK("WiFi initialized");
+
+    LOG_INFO_AT(1, "Using N2K addresses: %u (Temp), %u (Pressure), %u (Humidity)",
+        gN2KSource[0], gN2KSource[1], gN2KSource[2]);
+
+    gStatusSensor = "OK";
+    if (!bme.begin(BME280_I2C_ADDRESS)) {
+        gStatusSensor = "NOK";
+        LOG_ERROR("ERROR: Could not find a valid BME280 sensor, check wiring");
+    } else {
+        LOG_OK("BME280 sensor initialized");
+    }
+
+    LOG_INFO("Initializing NMEA 2000");
 
     Preferences prefs_;
     prefs_.begin("n2k", false);
@@ -228,7 +244,7 @@ void setup() {
             // First boot
             gN2KSource[i_] = defaultAddr_;
             prefs_.putUChar(key_, defaultAddr_);
-            eventLogger.logf("First boot: Set N2KSource%u = %u", (unsigned)i_, defaultAddr_);
+            LOG_INFO_AT(1, "First boot: Set N2KSource%u = %u", (unsigned)i_, defaultAddr_);
         }
         else {
             gN2KSource[i_] = val_;
@@ -236,28 +252,6 @@ void setup() {
     }
 
     prefs_.end();
-
-    eventLogger.logf("Using N2K addresses: %u (Temp), %u (Pressure), %u (Humidity)",
-        gN2KSource[0], gN2KSource[1], gN2KSource[2]);
-
-    gStatusSensor = "OK";
-    if (!bme.begin(BME280_I2C_ADDRESS)) {
-        gStatusSensor = "NOK";
-        eventLogger.log(F("ERROR: Could not find a valid BME280 sensor, check wiring"));
-    } else {
-        eventLogger.log(F("BME280 sensor initialized"));
-    }
-	
-
-    xTaskCreatePinnedToCore(
-        loop2, /* Function to implement the task */
-        "TaskHandle", /* Name of the task */
-        10000,  /* Stack size in words */
-        NULL,  /* Task input parameter */
-        0,  /* Priority of the task */
-        &TaskHandle,  /* Task handle. */
-        0 /* Core where the task should run */
-    );
 
     // Enable multi device support for 3 devices
     NMEA2000.SetDeviceCount(3); 
@@ -281,6 +275,7 @@ void setup() {
         0xff, // Sertification level - use default
         DeviceTemperature
     );
+    LOG_OK_AT(1, "NMEA 2000 Product information for DeviceTemperature set");
 
     NMEA2000.SetProductInformation(
         "102", // Manufacturer's Model serial code
@@ -293,6 +288,7 @@ void setup() {
         0xff, // Sertification level - use default
         DevicePressure
     );
+    LOG_OK_AT(1, "NMEA 2000 Product information for DevicePressure set");
 
     NMEA2000.SetProductInformation(
         "103", // Manufacturer's Model serial code
@@ -305,6 +301,7 @@ void setup() {
         0xff, // Sertification level - use default
         DeviceHumidity
     );
+    LOG_OK_AT(1, "NMEA 2000 Product information for DeviceHumidity set");
 
     // Set device information
     NMEA2000.SetDeviceInformation(
@@ -315,6 +312,7 @@ void setup() {
         4,  // Marine
         DeviceTemperature
     );
+    LOG_OK_AT(1, "NMEA 2000 Device information for DeviceTemperature set");
 
     NMEA2000.SetDeviceInformation(
         DeviceId2, // Unique number. Use e.g. Serial number.
@@ -324,6 +322,7 @@ void setup() {
         4,  // Marine
         DevicePressure
     );
+    LOG_OK_AT(1, "NMEA 2000 Device information for DevicePressure set");
 
     NMEA2000.SetDeviceInformation(
         DeviceId3, // Unique number. Use e.g. Serial number.
@@ -333,6 +332,7 @@ void setup() {
         4,  // Marine
         DeviceHumidity
     );
+    LOG_OK_AT(1, "NMEA 2000 Device information for DeviceHumidity set");
 
     // Disable all msg forwarding to USB (=Serial)
     NMEA2000.EnableForward(false); 
@@ -343,7 +343,7 @@ void setup() {
     NMEA2000.SetN2kSource(gN2KSource[DeviceTemperature], DeviceTemperature);
     NMEA2000.SetN2kSource(gN2KSource[DevicePressure], DevicePressure);
     NMEA2000.SetN2kSource(gN2KSource[DeviceHumidity], DeviceHumidity);
-
+    LOG_OK_AT(1, "NMEA 2000 N2k sources set");
 
     // Here we tell library, which PGNs we transmit
     NMEA2000.ExtendTransmitMessages(TemperaturTransmitMessages);
@@ -351,8 +351,21 @@ void setup() {
     NMEA2000.ExtendTransmitMessages(HumidityTransmitMessages);
         
     NMEA2000.Open();
+    LOG_OK("NMEA 2000 initialized");
+
+    xTaskCreatePinnedToCore(
+        loop2, /* Function to implement the task */
+        "TaskHandle", /* Name of the task */
+        10000,  /* Stack size in words */
+        NULL,  /* Task input parameter */
+        0,  /* Priority of the task */
+        &TaskHandle,  /* Task handle. */
+        0 /* Core where the task should run */
+    );
 
     esp_task_wdt_add(NULL); //add current thread to WDT watch
+
+    LOG_OK("Setup complete");
 }
 
 void SendN2kTemperature(uint8_t instance_) {
@@ -401,7 +414,7 @@ void SendN2kPressure(uint8_t instance_) {
         if (gStatusSensor != "NOK") {
             Pressure = bme.readPressure() / 100.0f;  // Read and convert to mBar 
         } else if (!gSensorErrorLogged) {
-            eventLogger.log(F("BME280 unavailable: pressure message uses fallback value"));
+            LOG_ERROR("BME280 unavailable: pressure message uses fallback value");
             gSensorErrorLogged = true;
         }
         SetN2kPGN130314(N2kMsg, gN2KSID, instance_, N2kps_Atmospheric, mBarToPascal(Pressure));
@@ -506,7 +519,7 @@ void SetSystemTime(uint16_t DaysSince1970, double SecondsSinceMidnight) {
     char timeStr[64];
     struct tm* timeinfo = localtime(&timestamp);
     strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
-    eventLogger.logf("System time set from NMEA2000: %s UTC", timeStr);
+    LOG_OK("System time set from NMEA2000: %s UTC", timeStr);
 }
 
 void ParseN2kSystemTime(const tN2kMsg& N2kMsg) {
@@ -520,7 +533,7 @@ void ParseN2kSystemTime(const tN2kMsg& N2kMsg) {
             SetSystemTime(SystemDate, SystemTime);
 
             if (debugMode) {
-                eventLogger.logf("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d",
+                LOG_OK("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d",
                     SystemDate, SystemTime, TimeSource);
             }
         }
@@ -550,7 +563,7 @@ void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
         SetSystemTime(DaysSince1970, SecondsSinceMidnight);
 
         if (debugMode) {
-            eventLogger.logf("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u",
+            LOG_OK("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u",
                 DaysSince1970, SecondsSinceMidnight, nSatellites);
         }
     }
